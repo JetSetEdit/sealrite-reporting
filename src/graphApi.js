@@ -60,14 +60,20 @@ class GraphAPI {
       
       logger.info(`Date range: ${startOfMonth.toISOString()} to ${endOfMonth.toISOString()}`);
       
-      // Request 1: Follower count (for growth calculation)
+      // Request 1: Follower count (for growth calculation) - only for recent data
       if (metrics.includes('follower_count')) {
         try {
+          // For follower count, only request recent data (last 30 days) to avoid API errors
+          const now = new Date();
+          const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+          const recentSince = Math.floor(thirtyDaysAgo.getTime() / 1000);
+          const recentUntil = Math.floor(now.getTime() / 1000);
+          
           const followerParams = {
             metric: 'follower_count',
             period: 'day',
-            since,
-            until
+            since: recentSince,
+            until: recentUntil
           };
           
           const followerResponse = await this.makeRequest(`/${accountId}/insights`, followerParams);
@@ -79,15 +85,14 @@ class GraphAPI {
         }
       }
       
-      // Request 2: Profile views (for highlights)
+      // Request 2: Profile visits (for highlights) - using correct metric name
       if (metrics.includes('profile_views')) {
         try {
           const profileParams = {
-            metric: 'profile_views',
+            metric: 'profile_visits',
             period: 'day',
             since,
-            until,
-            metric_type: 'total_value'
+            until
           };
           
           const profileResponse = await this.makeRequest(`/${accountId}/insights`, profileParams);
@@ -95,7 +100,7 @@ class GraphAPI {
             results.push(...profileResponse.data);
           }
         } catch (error) {
-          logger.warn(`Profile views request failed: ${error.response?.data?.error?.message}`);
+          logger.warn(`Profile visits request failed: ${error.response?.data?.error?.message}`);
         }
       }
       
@@ -145,7 +150,7 @@ class GraphAPI {
 
     const endpoint = `/${accountId}/media`;
     const params = {
-      fields: 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count,insights.metric(engagement,reach,impressions)',
+      fields: 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count',
       limit
     };
 
@@ -168,7 +173,7 @@ class GraphAPI {
           // Use actual data if available, otherwise keep placeholders
           like_count: post.like_count || 0,
           comments_count: post.comments_count || 0,
-          insights: post.insights || { data: [] }
+          insights: { data: [] } // Remove individual post insights to avoid API errors
         }));
       }
       
@@ -334,7 +339,7 @@ class GraphAPI {
       
       // Get account insights for the month
       const accountInsights = await this.getInstagramInsights(
-        ['follower_count', 'profile_views', 'reach'],
+        ['follower_count', 'profile_visits', 'reach'],
         'day',
         accountId,
         startDate,
@@ -424,15 +429,15 @@ class GraphAPI {
       // console.log(`  End followers: ${endFollowers}`);
       // console.log(`  Engagement rate: ${engagementRate}%`);
 
-      // Calculate profile views for the month
-      const profileViewsData = accountInsights.data.find(metric => metric.name === 'profile_views');
+      // Calculate profile visits for the month
+      const profileVisitsData = accountInsights.data.find(metric => metric.name === 'profile_visits');
       let totalProfileViews = 0;
 
-      if (profileViewsData && profileViewsData.values) {
-        totalProfileViews = profileViewsData.values.reduce((sum, day) => sum + (day.value || 0), 0);
-      } else if (profileViewsData && profileViewsData.total_value) {
+      if (profileVisitsData && profileVisitsData.values) {
+        totalProfileViews = profileVisitsData.values.reduce((sum, day) => sum + (day.value || 0), 0);
+      } else if (profileVisitsData && profileVisitsData.total_value) {
         // Use total_value if available (like in the current response)
-        totalProfileViews = profileViewsData.total_value.value || 0;
+        totalProfileViews = profileVisitsData.total_value.value || 0;
       }
 
       // Calculate total reach for the month
