@@ -309,6 +309,9 @@ function App() {
                         <span className="text-sm font-medium text-gray-700">Current Performance:</span>
                         <span className={`text-sm font-semibold ${data.instagram.kpis.engagementRate.percentage >= 5 ? 'text-green-600' : 'text-orange-600'}`}>
                           {data.instagram.kpis.engagementRate.percentage}%
+                          {data.instagram.kpis.engagementRate.percentage > 100 && (
+                            <span className="text-red-500 ml-1">⚠️</span>
+                          )}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -317,6 +320,11 @@ function App() {
                           {data.instagram.kpis.engagementRate.percentage >= 5 ? '✅ Target Met' : '⚠️ Target Not Met'}
                         </span>
                       </div>
+                      {data.instagram.kpis.engagementRate.percentage > 100 && (
+                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                          ⚠️ Unusually high engagement rate. This may indicate a follower count discrepancy or data aggregation issue.
+                        </div>
+                      )}
                     </div>
                   </div>
                   

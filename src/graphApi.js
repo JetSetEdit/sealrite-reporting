@@ -420,7 +420,9 @@ class GraphAPI {
         });
       }
 
-      const engagementRate = endFollowers > 0 ? ((totalLikes + totalComments) / endFollowers) * 100 : 0;
+      // Calculate engagement rate using current follower count (more accurate for recent periods)
+      // For engagement rate, we should use the current follower count rather than historical baseline
+      const engagementRate = currentFollowers > 0 ? ((totalLikes + totalComments) / currentFollowers) * 100 : 0;
       
       // Debug engagement calculation (commented out for production)
       // console.log('Engagement calculation details:');
@@ -460,9 +462,9 @@ class GraphAPI {
           totalLikes,
           totalComments,
           totalEngagement,
-          endFollowers,
-          formula: `(${totalLikes} + ${totalComments}) / ${endFollowers} * 100`,
-          note: 'Shares are omitted due to API limitations'
+          currentFollowers,
+          formula: `(${totalLikes} + ${totalComments}) / ${currentFollowers} * 100`,
+          note: engagementRate > 100 ? 'Unusually high engagement rate - may indicate follower count discrepancy or data aggregation issue' : 'Shares are omitted due to API limitations'
         },
         profileViews: {
           total: totalProfileViews,
