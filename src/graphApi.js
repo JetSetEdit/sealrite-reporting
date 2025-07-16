@@ -230,6 +230,55 @@ class GraphAPI {
         } catch (error) {
           logger.warn(`Instagram data not available: ${error.message}`);
           logger.warn(`Error details: ${JSON.stringify(error.response?.data)}`);
+          
+          // Return basic Instagram data even when API calls fail
+          try {
+            const accountInfo = await this.makeRequest(`/${instagramBusinessAccountId}`, {
+              fields: 'followers_count,media_count,username'
+            });
+            
+            instagramInsights = { data: [] };
+            instagramPosts = { count: 0, data: [] };
+                         instagramKPIs = {
+               followerGrowth: {
+                 percentage: 0,
+                 startCount: 58, // March 2025 baseline
+                 endCount: accountInfo.followers_count || 58,
+                 formula: `(${accountInfo.followers_count || 58} - 58) / 58 * 100`
+               },
+              engagementRate: {
+                percentage: 0,
+                totalLikes: 0,
+                totalComments: 0,
+                totalEngagement: 0,
+                endFollowers: accountInfo.followers_count || 58,
+                formula: `(0 + 0) / ${accountInfo.followers_count || 58} * 100`,
+                note: 'Data unavailable due to API limitations'
+              },
+              profileViews: {
+                total: 0,
+                period: 'monthly'
+              },
+              reach: {
+                total: 0,
+                period: 'monthly'
+              },
+              posts: {
+                count: 0,
+                data: []
+              },
+              reportingPeriod: {
+                start: startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
+                end: endDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString()
+              }
+            };
+          } catch (fallbackError) {
+            logger.error(`Fallback Instagram data also failed: ${fallbackError.message}`);
+            // Still return null if even the basic account info fails
+            instagramInsights = null;
+            instagramPosts = null;
+            instagramKPIs = null;
+          }
         }
       }
 
@@ -321,11 +370,11 @@ class GraphAPI {
       let startFollowers = 0;
       let endFollowers = 0;
 
-      // Use historical data if provided (March, April, May = 58 followers)
-      if (historicalFollowers !== null && historicalFollowers !== undefined) {
-        startFollowers = historicalFollowers;
-        logger.info(`Using historical follower count: ${historicalFollowers} (March/April/May)`);
-      } else {
+                // Use historical data if provided (March 2025 baseline = 58 followers)
+          if (historicalFollowers !== null && historicalFollowers !== undefined) {
+            startFollowers = historicalFollowers;
+            logger.info(`Using historical follower count: ${historicalFollowers} (March 2025 baseline)`);
+          } else {
         // Debug follower data (commented out for production)
         // console.log('Follower data found:', !!followerData);
 

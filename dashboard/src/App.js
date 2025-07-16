@@ -161,6 +161,7 @@ function App() {
                 <div>
                   <h1 className="text-3xl font-bold text-white">SealRite WSM</h1>
                   <p className="text-blue-100 text-sm">by OptiSeal Australia</p>
+                  <p className="text-blue-200 text-xs">📅 Agreement: May 22nd, 2025 | 📱 Instagram: March 2025</p>
                 </div>
               </div>
             </div>
@@ -226,6 +227,23 @@ function App() {
             <BarChart3 className="h-16 w-16 text-blue-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Welcome to SealRite WSM Analytics</h2>
             <p className="text-gray-600">Select a month and click "Refresh Data" to load the latest Instagram performance metrics.</p>
+          </div>
+        )}
+
+        {data && !data.instagram && !loading && (
+          <div className="text-center py-12">
+            <Instagram className="h-16 w-16 text-pink-400 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Instagram Data Unavailable</h2>
+            <p className="text-gray-600">Instagram data is not available for the selected month. This may be due to API limitations or no posts in this period.</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4 max-w-md mx-auto">
+              <p className="text-blue-800 text-sm font-medium mb-2">📅 Account Timeline:</p>
+              <ul className="text-blue-700 text-sm space-y-1 text-left">
+                <li>• <strong>March 2025:</strong> Instagram account created</li>
+                <li>• <strong>May 22nd, 2025:</strong> Agreement effective date</li>
+                <li>• <strong>Current:</strong> Account is actively growing</li>
+              </ul>
+            </div>
+            <p className="text-gray-500 text-sm mt-4">Try selecting a month from March 2025 onwards for available data.</p>
           </div>
         )}
 

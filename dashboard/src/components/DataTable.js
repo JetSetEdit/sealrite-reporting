@@ -67,6 +67,34 @@ const DataTable = ({ data }) => {
         </p>
       </div>
 
+      {/* No posts message */}
+      {instagramPosts.length === 0 && (
+        <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-lg text-center">
+          <Instagram className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Posts Available</h3>
+          <p className="text-gray-600 mb-3">
+            No Instagram posts were found for the selected month ({moment().format('MMMM YYYY')}).
+          </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <p className="text-blue-800 text-sm font-medium mb-2">📅 Account Timeline:</p>
+            <ul className="text-blue-700 text-sm space-y-1">
+              <li>• <strong>March 2025:</strong> Instagram account created</li>
+              <li>• <strong>May 22nd, 2025:</strong> Agreement effective date</li>
+              <li>• <strong>Current:</strong> Account is actively growing</li>
+            </ul>
+          </div>
+          <p className="text-gray-500 text-sm">
+            This could be because:
+          </p>
+          <ul className="text-gray-500 text-sm mt-2 space-y-1">
+            <li>• No posts were published in this month</li>
+            <li>• Instagram API has limited access to historical data</li>
+            <li>• The posts are not accessible with current permissions</li>
+            <li>• Selected month is before the account creation date</li>
+          </ul>
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
