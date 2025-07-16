@@ -12,14 +12,9 @@ import {
   AreaChart,
   Area
 } from 'recharts';
+import { formatNumber } from '../utils/formatters';
 
 const ChartComponent = ({ data, type }) => {
-  const formatNumber = (num) => {
-    if (!num) return '0';
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toString();
-  };
 
   const getChartData = () => {
     const chartData = [];
