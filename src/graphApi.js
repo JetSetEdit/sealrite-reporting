@@ -1,5 +1,6 @@
 const axios = require('axios');
 require('dotenv').config();
+const logger = require('./utils/logger');
 
 class GraphAPI {
   constructor() {
@@ -20,7 +21,7 @@ class GraphAPI {
       });
       return response.data;
     } catch (error) {
-      console.error(`Graph API Error: ${error.message}`);
+      logger.error(`Graph API Error: ${error.message}`);
       throw error;
     }
   }
@@ -45,7 +46,7 @@ class GraphAPI {
     }
 
     try {
-      console.log(`Making Instagram insights requests for account: ${accountId}`);
+      logger.info(`Making Instagram insights requests for account: ${accountId}`);
       
       const results = [];
       
@@ -57,7 +58,7 @@ class GraphAPI {
       const since = Math.floor(startOfMonth.getTime() / 1000);
       const until = Math.floor(endOfMonth.getTime() / 1000);
       
-      console.log(`Date range: ${startOfMonth.toISOString()} to ${endOfMonth.toISOString()}`);
+      logger.info(`Date range: ${startOfMonth.toISOString()} to ${endOfMonth.toISOString()}`);
       
       // Request 1: Follower count (for growth calculation)
       if (metrics.includes('follower_count')) {
@@ -74,7 +75,7 @@ class GraphAPI {
             results.push(...followerResponse.data);
           }
         } catch (error) {
-          console.warn('Follower count request failed:', error.response?.data?.error?.message);
+          logger.warn(`Follower count request failed: ${error.response?.data?.error?.message}`);
         }
       }
       
@@ -94,7 +95,7 @@ class GraphAPI {
             results.push(...profileResponse.data);
           }
         } catch (error) {
-          console.warn('Profile views request failed:', error.response?.data?.error?.message);
+          logger.warn(`Profile views request failed: ${error.response?.data?.error?.message}`);
         }
       }
       
@@ -113,13 +114,13 @@ class GraphAPI {
             results.push(...reachResponse.data);
           }
         } catch (error) {
-          console.warn('Reach request failed:', error.response?.data?.error?.message);
+          logger.warn(`Reach request failed: ${error.response?.data?.error?.message}`);
         }
       }
       
       return { data: results };
     } catch (error) {
-      console.error('Instagram insights error:', error.response?.data || error.message);
+      logger.error(`Instagram insights error: ${error.response?.data || error.message}`);
       throw error;
     }
   }
@@ -157,7 +158,7 @@ class GraphAPI {
     }
 
     try {
-      console.log(`Making Instagram posts request to: ${endpoint}`);
+      logger.info(`Making Instagram posts request to: ${endpoint}`);
       const response = await this.makeRequest(endpoint, params);
       
       // Process posts to enhance with insights data
@@ -173,7 +174,7 @@ class GraphAPI {
       
       return response;
     } catch (error) {
-      console.error('Instagram posts error:', error.response?.data || error.message);
+      logger.error(`Instagram posts error: ${error.response?.data || error.message}`);
       throw error;
     }
   }
@@ -218,17 +219,17 @@ class GraphAPI {
       // Fetch Instagram data as primary focus
       if (instagramBusinessAccountId) {
         try {
-          console.log(`Fetching Instagram data for account: ${instagramBusinessAccountId}`);
+          logger.info(`Fetching Instagram data for account: ${instagramBusinessAccountId}`);
           // Calculate Instagram KPIs for the specified month with historical follower data
           // Historical data: March, April, May = 58 followers
           instagramKPIs = await this.calculateInstagramKPIs(instagramBusinessAccountId, startDate, endDate, 58);
           
           instagramInsights = { data: [] }; // Keep for backward compatibility
           instagramPosts = instagramKPIs.posts;
-          console.log('Instagram data fetched successfully');
+          logger.info('Instagram data fetched successfully');
         } catch (error) {
-          console.warn('Instagram data not available:', error.message);
-          console.warn('Error details:', error.response?.data);
+          logger.warn(`Instagram data not available: ${error.message}`);
+          logger.warn(`Error details: ${JSON.stringify(error.response?.data)}`);
         }
       }
 
@@ -258,7 +259,7 @@ class GraphAPI {
         }
       };
     } catch (error) {
-      console.error('Error fetching monthly data:', error);
+      logger.error(`Error fetching monthly data: ${error.message}`);
       throw error;
     }
   }
@@ -280,7 +281,7 @@ class GraphAPI {
     }
 
     try {
-      console.log('📊 Calculating Instagram KPIs for contract reporting...');
+      logger.info('Calculating Instagram KPIs for contract reporting...');
       
       // Get account insights for the month
       const accountInsights = await this.getInstagramInsights(
@@ -303,7 +304,7 @@ class GraphAPI {
         currentFollowers = accountInfo.followers_count || 0;
         // console.log('Current follower count from account info:', currentFollowers);
       } catch (error) {
-        console.warn('Could not get follower count from account info:', error.message);
+        logger.warn(`Could not get follower count from account info: ${error.message}`);
       }
 
       // Get posts for the month (without individual insights to avoid 400 errors)
@@ -323,7 +324,7 @@ class GraphAPI {
       // Use historical data if provided (March, April, May = 58 followers)
       if (historicalFollowers !== null && historicalFollowers !== undefined) {
         startFollowers = historicalFollowers;
-        console.log(`Using historical follower count: ${historicalFollowers} (March/April/May)`);
+        logger.info(`Using historical follower count: ${historicalFollowers} (March/April/May)`);
       } else {
         // Debug follower data (commented out for production)
         // console.log('Follower data found:', !!followerData);
@@ -347,7 +348,7 @@ class GraphAPI {
       if (historicalFollowers !== null && historicalFollowers !== undefined) {
         endFollowers = currentFollowers;
         followerGrowth = startFollowers > 0 ? ((endFollowers - startFollowers) / startFollowers) * 100 : 0;
-        console.log(`Follower growth calculation: (${endFollowers} - ${startFollowers}) / ${startFollowers} * 100 = ${followerGrowth}%`);
+        logger.info(`Follower growth calculation: (${endFollowers} - ${startFollowers}) / ${startFollowers} * 100 = ${followerGrowth}%`);
       }
 
       // Calculate engagement rate
@@ -428,7 +429,7 @@ class GraphAPI {
       };
 
     } catch (error) {
-      console.error('Error calculating Instagram KPIs:', error);
+      logger.error(`Error calculating Instagram KPIs: ${error.message}`);
       throw error;
     }
   }

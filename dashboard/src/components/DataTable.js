@@ -1,14 +1,9 @@
 import React from 'react';
 import moment from 'moment';
-import { Instagram, ExternalLink, Heart, MessageCircle, Eye } from 'lucide-react';
+import { Instagram, ExternalLink, Heart, MessageCircle, Eye, Video, Image as ImageIcon, GalleryHorizontalEnd } from 'lucide-react';
+import { formatNumber } from '../utils/formatters';
 
 const DataTable = ({ data }) => {
-  const formatNumber = (num) => {
-    if (!num) return '0';
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toString();
-  };
 
 
 
@@ -45,13 +40,13 @@ const DataTable = ({ data }) => {
   const getMediaTypeIcon = (type) => {
     switch (type) {
       case 'video':
-        return '🎥';
+        return <Video className="h-4 w-4" />;
       case 'photo':
-        return '📷';
+        return <ImageIcon className="h-4 w-4" />;
       case 'carousel_album':
-        return '📚';
+        return <GalleryHorizontalEnd className="h-4 w-4" />;
       default:
-        return '📄';
+        return <ImageIcon className="h-4 w-4" />;
     }
   };
 

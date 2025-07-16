@@ -5,6 +5,8 @@ const path = require('path');
 const GraphAPI = require('./graphApi');
 const ReportGenerator = require('./reportGenerator');
 const moment = require('moment');
+const { body, validationResult } = require('express-validator');
+const logger = require('./utils/logger');
 require('dotenv').config();
 
 const app = express();
@@ -57,15 +59,18 @@ app.get('/api/metrics', (req, res) => {
 });
 
 // Fetch data from Graph API
-app.post('/api/fetch-data', async (req, res) => {
-  try {
-    const { pageId, includeInstagram = true, month } = req.body;
-    
-    if (!pageId) {
-      return res.status(400).json({ error: 'Page ID is required' });
+app.post(
+  '/api/fetch-data',
+  [body('pageId').notEmpty().withMessage('Page ID is required')],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
+    try {
+      const { pageId, includeInstagram = true, month } = req.body;
 
-    console.log(`Fetching data for page: ${pageId}${month ? ` for month: ${month}` : ''}`);
+      logger.info(`Fetching data for page: ${pageId}${month ? ` for month: ${month}` : ''}`);
     
     // Calculate date range for the specified month
     let startDate = null;
@@ -75,7 +80,7 @@ app.post('/api/fetch-data', async (req, res) => {
       const [year, monthNum] = month.split('-').map(Number);
       startDate = new Date(year, monthNum - 1, 1).toISOString();
       endDate = new Date(year, monthNum, 0).toISOString();
-      console.log(`Date range: ${startDate} to ${endDate}`);
+      logger.info(`Date range: ${startDate} to ${endDate}`);
     }
     
     const data = await graphApi.getMonthlyData(pageId, startDate, endDate);
@@ -87,7 +92,7 @@ app.post('/api/fetch-data', async (req, res) => {
       month: month || 'current'
     });
   } catch (error) {
-    console.error('Error fetching data:', error);
+    logger.error(`Error fetching data: ${error.message}`);
     res.status(500).json({
       error: 'Failed to fetch data',
       message: error.message
@@ -96,25 +101,31 @@ app.post('/api/fetch-data', async (req, res) => {
 });
 
 // Generate monthly report
-app.post('/api/generate-report', async (req, res) => {
-  try {
-    const { pageId, pageName, month, data } = req.body;
-    
-    if (!pageId || !pageName) {
-      return res.status(400).json({ error: 'Page ID and Page Name are required' });
+app.post(
+  '/api/generate-report',
+  [
+    body('pageId').notEmpty().withMessage('Page ID is required'),
+    body('pageName').notEmpty().withMessage('Page Name is required')
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
+    try {
+      const { pageId, pageName, month, data } = req.body;
 
     // If data is not provided, fetch it
     let reportData = data;
     if (!reportData) {
-      console.log(`Fetching data for report generation: ${pageId}`);
+      logger.info(`Fetching data for report generation: ${pageId}`);
       reportData = await graphApi.getMonthlyData(pageId);
     }
 
     // Use current month if not specified
     const reportMonth = month || moment().format('YYYY-MM');
     
-    console.log(`Generating report for ${pageName} - ${reportMonth}`);
+    logger.info(`Generating report for ${pageName} - ${reportMonth}`);
     const reportFiles = await reportGenerator.generateComprehensiveReport(
       reportData,
       pageName,
@@ -127,7 +138,7 @@ app.post('/api/generate-report', async (req, res) => {
       files: reportFiles
     });
   } catch (error) {
-    console.error('Error generating report:', error);
+    logger.error(`Error generating report: ${error.message}`);
     res.status(500).json({
       error: 'Failed to generate report',
       message: error.message
@@ -151,7 +162,7 @@ app.get('/api/facebook/:pageId/insights', async (req, res) => {
     const insights = await graphApi.getFacebookPageInsights(pageId, metricsArray, period);
     res.json(insights);
   } catch (error) {
-    console.error('Error fetching Facebook insights:', error);
+    logger.error(`Error fetching Facebook insights: ${error.message}`);
     res.status(500).json({
       error: 'Failed to fetch Facebook insights',
       message: error.message
@@ -174,7 +185,7 @@ app.get('/api/instagram/insights', async (req, res) => {
     const insights = await graphApi.getInstagramInsights(metricsArray, period);
     res.json(insights);
   } catch (error) {
-    console.error('Error fetching Instagram insights:', error);
+    logger.error(`Error fetching Instagram insights: ${error.message}`);
     res.status(500).json({
       error: 'Failed to fetch Instagram insights',
       message: error.message
@@ -191,7 +202,7 @@ app.get('/api/facebook/:pageId/posts', async (req, res) => {
     const posts = await graphApi.getFacebookPosts(pageId, parseInt(limit));
     res.json(posts);
   } catch (error) {
-    console.error('Error fetching Facebook posts:', error);
+    logger.error(`Error fetching Facebook posts: ${error.message}`);
     res.status(500).json({
       error: 'Failed to fetch Facebook posts',
       message: error.message
@@ -207,7 +218,7 @@ app.get('/api/instagram/posts', async (req, res) => {
     const posts = await graphApi.getInstagramPosts(parseInt(limit));
     res.json(posts);
   } catch (error) {
-    console.error('Error fetching Instagram posts:', error);
+    logger.error(`Error fetching Instagram posts: ${error.message}`);
     res.status(500).json({
       error: 'Failed to fetch Instagram posts',
       message: error.message
@@ -244,7 +255,7 @@ app.get('/api/pages', async (req, res) => {
     
     res.json(pages);
   } catch (error) {
-    console.error('Error fetching pages:', error.response?.data?.error || error.message);
+    logger.error(`Error fetching pages: ${error.response?.data?.error || error.message}`);
     res.status(500).json({
       error: 'Failed to fetch pages',
       message: error.response?.data?.error?.message || error.message
@@ -254,7 +265,7 @@ app.get('/api/pages', async (req, res) => {
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-  console.error('Unhandled error:', error);
+  logger.error(`Unhandled error: ${error.message}`);
   res.status(500).json({
     error: 'Internal server error',
     message: error.message
@@ -268,9 +279,9 @@ app.get('*', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 SealRite Reporting Server running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`📈 API documentation available at http://localhost:${PORT}/api/metrics`);
+  logger.info(`SealRite Reporting Server running on port ${PORT}`);
+  logger.info(`Health check: http://localhost:${PORT}/health`);
+  logger.info(`API documentation available at http://localhost:${PORT}/api/metrics`);
 });
 
 module.exports = app; 

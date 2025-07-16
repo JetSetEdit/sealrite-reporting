@@ -12,7 +12,7 @@
     "report": "node src/cli.js report",
     "help": "node src/cli.js help",
     "test": "jest",
-    "test-connection": "node src/test.js",
+    "test-connection": "node src/testConnection.js",
     "find-pages": "node src/findPageId.js",
     "build-dashboard": "cd dashboard && npm run build",
     "dev-dashboard": "cd dashboard && npm start"
@@ -27,6 +27,8 @@
     "helmet": "^7.1.0",
     "moment": "^2.29.4",
     "open": "^10.2.0",
+    "winston": "^3.9.0",
+    "express-validator": "^7.0.1",
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
