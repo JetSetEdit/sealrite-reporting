@@ -1,118 +1,70 @@
-# SealRite Dashboard
+# Getting Started with Create React App
 
-A modern React-based dashboard for visualizing monthly social media analytics and generating comprehensive reports.
+This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-## Features
+## Available Scripts
 
-- 📊 **Real-time Analytics**: View Facebook and Instagram metrics in real-time
-- 📈 **Interactive Charts**: Beautiful charts powered by Recharts
-- 📱 **Responsive Design**: Works perfectly on desktop, tablet, and mobile
-- 🔄 **Auto-refresh**: Keep data up-to-date with manual refresh
-- 📄 **Report Generation**: Generate comprehensive PDF and Excel reports
-- 🎨 **Modern UI**: Clean, professional interface with Tailwind CSS
+In the project directory, you can run:
 
-## Quick Start
+### `npm start`
 
-### Prerequisites
+Runs the app in the development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
-- Node.js 16+ 
-- npm or yarn
-- Backend server running (see main README)
+The page will reload when you make changes.\
+You may also see any lint errors in the console.
 
-### Installation
+### `npm test`
 
-1. Install dependencies:
-```bash
-npm install
-```
+Launches the test runner in the interactive watch mode.\
+See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
 
-2. Start the development server:
-```bash
-npm start
-```
+### `npm run build`
 
-3. Open [http://localhost:3001](http://localhost:3001) in your browser
+Builds the app for production to the `build` folder.\
+It correctly bundles React in production mode and optimizes the build for the best performance.
 
-### Building for Production
+The build is minified and the filenames include the hashes.\
+Your app is ready to be deployed!
 
-```bash
-npm run build
-```
+See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
 
-The built files will be in the `build/` directory and will be served by the main Express server.
+### `npm run eject`
 
-## Usage
+**Note: this is a one-way operation. Once you `eject`, you can't go back!**
 
-1. **Select a Page**: Use the page selector dropdown to choose which Facebook page to analyze
-2. **View Metrics**: See key metrics displayed in beautiful cards with icons
-3. **Explore Charts**: Interactive charts show engagement, reach, and follower trends
-4. **Browse Posts**: View recent posts with their performance metrics
-5. **Generate Reports**: Click "Generate Report" to create comprehensive monthly reports
+If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
 
-## Components
+Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
 
-- **MetricCard**: Displays individual metrics with icons and formatting
-- **ChartComponent**: Interactive charts using Recharts library
-- **DataTable**: Tabular view of recent posts with filtering
-- **PageSelector**: Dropdown to select Facebook pages
+You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
 
-## Styling
+## Learn More
 
-The dashboard uses Tailwind CSS for styling with custom components defined in `src/index.css`. The design follows modern UI/UX principles with:
+You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
 
-- Clean, minimalist design
-- Consistent spacing and typography
-- Responsive grid layouts
-- Hover effects and transitions
-- Platform-specific colors (Facebook blue, Instagram pink)
+To learn React, check out the [React documentation](https://reactjs.org/).
 
-## API Integration
+### Code Splitting
 
-The dashboard communicates with the backend API endpoints:
+This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
 
-- `GET /api/pages` - Fetch available Facebook pages
-- `POST /api/fetch-data` - Get analytics data for a page
-- `POST /api/generate-report` - Generate monthly reports
+### Analyzing the Bundle Size
 
-## Development
+This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
 
-### Project Structure
+### Making a Progressive Web App
 
-```
-dashboard/
-├── public/
-│   └── index.html
-├── src/
-│   ├── components/
-│   │   ├── MetricCard.js
-│   │   ├── ChartComponent.js
-│   │   ├── DataTable.js
-│   │   └── PageSelector.js
-│   ├── App.js
-│   ├── index.js
-│   └── index.css
-├── package.json
-├── tailwind.config.js
-└── postcss.config.js
-```
+This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
 
-### Adding New Features
+### Advanced Configuration
 
-1. Create new components in `src/components/`
-2. Add new API endpoints in the backend
-3. Update the main App.js to include new features
-4. Style with Tailwind CSS classes
+This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
 
-## Troubleshooting
+### Deployment
 
-- **Dashboard not loading**: Ensure the backend server is running on port 3000
-- **No data showing**: Check that your Facebook access token is valid
-- **Charts not rendering**: Verify that Recharts is properly installed
-- **Styling issues**: Make sure Tailwind CSS is properly configured
+This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
 
-## Contributing
+### `npm run build` fails to minify
 
-1. Follow the existing code style and patterns
-2. Add proper error handling for new features
-3. Test on different screen sizes for responsiveness
-4. Update documentation for new features 
+This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
