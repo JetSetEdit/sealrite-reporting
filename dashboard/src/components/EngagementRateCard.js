@@ -5,33 +5,40 @@ const EngagementRateCard = () => {
   const [engagementData, setEngagementData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState('june'); // Default to current month
+  const [selectedMonth, setSelectedMonth] = useState('current'); // Default to current period
 
-  const months = ['march', 'april', 'may', 'june'];
+  const months = ['june', 'current'];
   const monthNames = {
-    'march': 'March 2025',
-    'april': 'April 2025', 
-    'may': 'May 2025',
-    'june': 'June 2025'
+    'june': 'June 2025',
+    'current': 'Last 30 Days'
   };
 
   const getMonthDateRange = (month) => {
-    const currentYear = 2025; // Since account started in March 2025
-    const monthMap = {
-      'march': 2,  // March (0-indexed: 2)
-      'april': 3,  // April (0-indexed: 3)
-      'may': 4,    // May (0-indexed: 4)
-      'june': 5    // June (0-indexed: 5)
-    };
-    
-    const monthIndex = monthMap[month];
-    const startDate = new Date(currentYear, monthIndex, 1);
-    const endDate = new Date(currentYear, monthIndex + 1, 0); // Last day of the month
-    
-    return {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString()
-    };
+    if (month === 'current') {
+      // For current period, use last 30 days
+      const endDate = new Date();
+      const startDate = new Date(endDate.getTime() - (30 * 24 * 60 * 60 * 1000));
+      
+      return {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      };
+    } else {
+      // For specific months
+      const currentYear = 2025; // Since account started in March 2025
+      const monthMap = {
+        'june': 5   // June (0-indexed: 5)
+      };
+      
+      const monthIndex = monthMap[month];
+      const startDate = new Date(currentYear, monthIndex, 1);
+      const endDate = new Date(currentYear, monthIndex + 1, 0); // Last day of the month
+      
+      return {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      };
+    }
   };
 
   const navigateMonth = (direction) => {

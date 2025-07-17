@@ -11,7 +11,8 @@ async function getMarch2025Data() {
   console.log(`📅 Date range: ${startDate} to ${endDate}\n`);
   
   try {
-    const kpis = await graphAPI.calculateInstagramKPIs(startDate, endDate);
+    // Pass null as the first argument to use the ID from process.env
+    const kpis = await graphAPI.calculateInstagramKPIs(null, startDate, endDate);
     
     console.log('\n📋 MARCH 2025 SUMMARY');
     console.log('='.repeat(50));

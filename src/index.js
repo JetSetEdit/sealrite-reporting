@@ -120,11 +120,37 @@ app.post('/api/monthly-data', async (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server with proper error handling
+const server = app.listen(PORT, () => {
   console.log(`🚀 SealRite Reporting Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`📈 API documentation available at http://localhost:${PORT}/api/instagram/kpis`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use. Please try a different port or kill the process using this port.`);
+    console.error(`💡 You can kill the process with: lsof -ti:${PORT} | xargs kill -9`);
+    process.exit(1);
+  } else {
+    console.error('❌ Server error:', err);
+    process.exit(1);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
 });
 
 module.exports = app; 

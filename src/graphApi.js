@@ -17,7 +17,7 @@ class GraphAPI {
   }
 
   /**
-   * Helper to chunk a date range into 30-day intervals (max allowed by some API insights).
+   * Helper to chunk a date range into smaller intervals for memory efficiency.
    * @param {Date} start - Start date of the overall period.
    * @param {Date} end - End date of the overall period.
    * @returns {Array<{since: number, until: number}>} - Array of date chunks as Unix timestamps.
@@ -29,21 +29,21 @@ class GraphAPI {
 
     while (currentStart.getTime() <= endDate.getTime()) {
       let chunkEndDate = new Date(currentStart);
-      chunkEndDate.setDate(currentStart.getDate() + 29); // 30 days including the start day
+      chunkEndDate.setDate(currentStart.getDate() + 6); // 7 days for better memory management
 
       if (chunkEndDate.getTime() > endDate.getTime()) {
         chunkEndDate = new Date(endDate); // Ensure the last chunk doesn't go past the overall end date
       }
 
       chunks.push({
-        since: currentStart.toISOString(),
-        until: chunkEndDate.toISOString()
+        since: currentStart.toISOString().split('T')[0], // Changed to YYYY-MM-DD
+        until: chunkEndDate.toISOString().split('T')[0]   // Changed to YYYY-MM-DD
       });
 
       currentStart.setDate(chunkEndDate.getDate() + 1); // Move to the next day after the chunk ends
       currentStart.setHours(0,0,0,0); // Reset hours to avoid timezone issues affecting date arithmetic
     }
-    console.log(`Generated ${chunks.length} date chunks for period.`);
+    console.log(`Generated ${chunks.length} date chunks for period (7-day intervals for memory efficiency).`);
     return chunks;
   }
 
@@ -78,9 +78,11 @@ class GraphAPI {
       }
 
       try {
-        console.log(`Making request attempt ${attempt + 1} to: ${currentUrl || url} (initial endpoint: ${endpoint})`);
+        const finalUrl = currentUrl || url;
+        console.log(`Making request attempt ${attempt + 1} to: ${finalUrl} (initial endpoint: ${endpoint})`);
+        console.log(`DEBUG: Making request to final URL: ${finalUrl} with params:`, (currentUrl === url ? { access_token: this.accessToken, ...params } : {}));
         
-        const response = await axios.get(currentUrl || url, {
+        const response = await axios.get(finalUrl, {
           params: (currentUrl === url ? { access_token: this.accessToken, ...params } : {}), // Params only for the first call
           validateStatus: (status) => status >= 200 && status < 500, // Do not throw for 4xx errors; handle them manually
           timeout: 20000 // 20-second timeout for API calls
@@ -171,47 +173,80 @@ class GraphAPI {
     if (!accountId) {
       throw new Error('Instagram Business Account ID not configured');
     }
+    console.log(`DEBUG: Account ID used for Instagram Insights endpoint: ${accountId}`);
 
     const startOfPeriod = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const endOfPeriod = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
     
     console.log(`Fetching Instagram insights for period: ${startOfPeriod.toISOString()} to ${endOfPeriod.toISOString()}`);
     
-    const insightsToFetch = [...new Set(metrics.concat([
-        'follower_count', 'profile_views', 'reach', 'impressions',
-        'website_clicks'
+    // Combine requested metrics with default ones, ensuring uniqueness
+    // Note: 'impressions' is deprecated in API v22+ and removed from default metrics
+    const insightsToFetchAll = [...new Set(metrics.concat([
+        'profile_views', 'reach', 'website_clicks'
     ]))];
+
+    // Categorize metrics based on their compatibility with 'metric_type=total_value'
+    const metricsRequiringTotalValue = ['profile_views', 'website_clicks'];
+    const metricsForPeriodDay = insightsToFetchAll.filter(metric => !metricsRequiringTotalValue.includes(metric));
+    const metricsForTotalValue = insightsToFetchAll.filter(metric => metricsRequiringTotalValue.includes(metric));
 
     const chunks = this._getDateChunks(startOfPeriod, endOfPeriod);
     const endpoint = `/${accountId}/insights`;
     
-    // PARALLEL PROCESSING: Launch all chunk requests simultaneously
-    const insightPromises = chunks.map(async (chunk, index) => {
-      const params = {
-        metric: insightsToFetch.join(','),
-        period: 'day', // Always request daily values for chunking and aggregation
-        metric_type: 'total_value', // Required for profile_views and website_clicks
-        since: chunk.since,
-        until: chunk.until
-      };
-      // Add a unique cache suffix for each chunk
-      console.log(`Launching parallel insights request for chunk ${index + 1}: ${chunk.since} to ${chunk.until}`);
-      return await this.makeRequest(endpoint, params, 3, 1000, `igInsights-${accountId}-${chunk.since}-${chunk.until}`);
-    });
-
     let allResultsData = [];
-    try {
-      const responses = await Promise.all(insightPromises);
-      responses.forEach(response => {
-        if (response.data) {
-          allResultsData.push(...response.data);
+
+    // Process chunks sequentially to reduce memory usage
+    console.log(`Processing ${chunks.length} chunks sequentially for memory efficiency...`);
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      console.log(`Processing chunk ${i + 1}/${chunks.length}: ${chunk.since} to ${chunk.until}`);
+
+      // 1. Fetch metrics that DO NOT require metric_type=total_value
+      if (metricsForPeriodDay.length > 0) {
+        const params = {
+          metric: metricsForPeriodDay.join(','),
+          period: 'day',
+          since: chunk.since,
+          until: chunk.until
+        };
+        try {
+          const result = await this.makeRequest(endpoint, params, 3, 1000, `igInsights-day-${accountId}-${chunk.since}-${chunk.until}`);
+          if (result.data) {
+            allResultsData.push(...result.data);
+          }
+        } catch (error) {
+          console.error(`Error fetching chunk ${i + 1} (day metrics):`, error.message);
         }
-      });
-      console.log(`Successfully fetched insights for all ${chunks.length} chunks.`);
-    } catch (error) {
-      console.error('Error fetching Instagram insights in parallel chunks:', error.message);
-      throw error; // Re-throw to propagate the error
+      }
+
+      // 2. Fetch metrics that DO require metric_type=total_value
+      if (metricsForTotalValue.length > 0) {
+        const params = {
+          metric: metricsForTotalValue.join(','),
+          period: 'day',
+          metric_type: 'total_value',
+          since: chunk.since,
+          until: chunk.until
+        };
+        try {
+          const result = await this.makeRequest(endpoint, params, 3, 1000, `igInsights-total_value-${accountId}-${chunk.since}-${chunk.until}`);
+          if (result.data) {
+            allResultsData.push(...result.data);
+          }
+        } catch (error) {
+          console.error(`Error fetching chunk ${i + 1} (total_value metrics):`, error.message);
+        }
+      }
+
+      // Add a small delay between chunks to prevent overwhelming the API and reduce memory pressure
+      if (i < chunks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
+
+    console.log(`Successfully fetched insights for all ${chunks.length} chunks sequentially.`);
     
     // Aggregate results from all chunks. This will ensure unique metric names are processed.
     const aggregatedData = {};
@@ -252,32 +287,39 @@ class GraphAPI {
     const chunks = this._getDateChunks(startOfPeriod, endOfPeriod);
     const endpoint = `/${accountId}/media`;
 
-    // PARALLEL PROCESSING: Launch all chunk requests simultaneously
-    const postPromises = chunks.map(async (chunk, index) => {
+    let allPostsData = [];
+
+    // Process chunks sequentially to reduce memory usage
+    console.log(`Processing ${chunks.length} post chunks sequentially for memory efficiency...`);
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      console.log(`Processing post chunk ${i + 1}/${chunks.length}: ${chunk.since} to ${chunk.until}`);
+
       const params = {
         // Request likes, comments, saved, and shares explicitly from insights.metric
-        fields: 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count,insights.metric(likes,comments,saved,shares,reach,impressions,website_clicks)', 
+        fields: 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count,insights.metric(likes,comments,saved,shares,reach,website_clicks)', 
         limit: limit, // Initial limit for the first page of each chunk, makeRequest handles pagination within chunk
         since: chunk.since,
         until: chunk.until,
       };
-      console.log(`Launching parallel posts request for chunk ${index + 1}: ${chunk.since} to ${chunk.until}`);
-      return await this.makeRequest(endpoint, params, 3, 1000, `igPosts-${accountId}-${chunk.since}-${chunk.until}`); // Add cache suffix
-    });
+      
+      try {
+        const result = await this.makeRequest(endpoint, params, 3, 1000, `igPosts-${accountId}-${chunk.since}-${chunk.until}`);
+        if (result.data) {
+          allPostsData.push(...result.data);
+        }
+      } catch (error) {
+        console.error(`Error fetching post chunk ${i + 1}:`, error.message);
+      }
 
-    let allPostsData = [];
-    try {
-        const responses = await Promise.all(postPromises);
-        responses.forEach(response => {
-            if (response.data) {
-                allPostsData.push(...response.data);
-            }
-        });
-        console.log(`Successfully fetched posts for all ${chunks.length} chunks.`);
-    } catch (error) {
-        console.error('Error fetching Instagram posts in parallel chunks:', error.message);
-        throw error; // Re-throw to propagate the error
+      // Add a small delay between chunks to prevent overwhelming the API and reduce memory pressure
+      if (i < chunks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
+
+    console.log(`Successfully fetched posts for all ${chunks.length} chunks sequentially.`);
 
     // Process all collected posts
     if (allPostsData) {
@@ -418,6 +460,9 @@ class GraphAPI {
     if (!accountId) {
       throw new Error('Instagram Business Account ID not configured');
     }
+    console.log(`DEBUG: calculateInstagramKPIs - accountId: ${accountId}`);
+    console.log(`DEBUG: calculateInstagramKPIs - instagramBusinessAccountId parameter: ${instagramBusinessAccountId}`);
+    console.log(`DEBUG: calculateInstagramKPIs - this.instagramBusinessAccountId: ${this.instagramBusinessAccountId}`);
 
     console.log('📊 Calculating Instagram KPIs for contract reporting...');
     
@@ -425,13 +470,14 @@ class GraphAPI {
     const startOfPeriod = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfPeriod = endDate ? new Date(endDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0);
     
-    // Fetch account-level insights (reach, impressions, profile_views, follower_count, website_clicks)
+    // Fetch account-level insights (reach, profile_views, website_clicks)
+    // Note: 'impressions' is deprecated in API v22+ and no longer supported
     const accountInsights = await this.getInstagramInsights(
-      ['follower_count', 'profile_views', 'reach', 'impressions', 'website_clicks'],
+      ['profile_views', 'reach', 'website_clicks'],
       'day', // Period is day for daily totals which will be summed later
-      accountId,
-      startOfPeriod.toISOString(),
-      endOfPeriod.toISOString()
+      accountId, // Instagram Business Account ID
+      startOfPeriod.toISOString(), // startDate
+      endOfPeriod.toISOString()    // endDate
     );
 
     console.log('Account insights response for KPIs:', accountInsights);
@@ -440,24 +486,20 @@ class GraphAPI {
     let endFollowers = 0;
     let averageFollowers = 0;
 
-    const followerDataSeries = accountInsights.data.find(metric => metric.name === 'follower_count');
-    if (followerDataSeries && followerDataSeries.values && followerDataSeries.values.length > 0) {
-        startFollowers = followerDataSeries.values[0].value;
-        endFollowers = followerDataSeries.values[followerDataSeries.values.length - 1].value;
-        
-        const totalDailyFollowers = followerDataSeries.values.reduce((sum, day) => sum + (day.value || 0), 0);
-        averageFollowers = totalDailyFollowers / followerDataSeries.values.length;
-        console.log(`Calculated average followers from daily data: ${averageFollowers}`);
-    } else {
-      try {
-        const accountInfo = await this.makeRequest(`/${accountId}`, { fields: 'followers_count' });
-        endFollowers = accountInfo.followers_count || 0;
-        startFollowers = endFollowers; 
-        averageFollowers = endFollowers; 
-        console.log(`Fallback: Used single current follower count for start, end, and average: ${endFollowers}`);
-      } catch (error) {
-        console.log('Could not get current follower count from account info for fallback:', error.message);
-      }
+    // Get current follower count from account info (simpler approach)
+    try {
+      const accountInfo = await this.makeRequest(`/${accountId}`, { fields: 'followers_count' });
+      endFollowers = accountInfo.followers_count || 0;
+      startFollowers = endFollowers; 
+      averageFollowers = endFollowers; 
+      console.log(`Current follower count: ${endFollowers}`);
+    } catch (error) {
+      console.log('Could not get current follower count from account info:', error.message);
+      // Set default values if method fails
+      startFollowers = 0;
+      endFollowers = 0;
+      averageFollowers = 0;
+      console.log('Using default follower count values of 0');
     }
 
     let followerGrowthPercentage = 0;
@@ -515,7 +557,8 @@ class GraphAPI {
     // These metrics are not supported for Instagram Business accounts
 
     const totalReach = getAccountMetricTotal('reach');
-    const totalImpressions = getAccountMetricTotal('impressions'); 
+    // Note: impressions is deprecated in API v22+ and no longer available
+    const totalImpressions = 0; // Set to 0 since impressions metric is deprecated
 
     // Use Total Reach for engagement rate calculation denominator
     const engagementRatePercentage = totalReach > 0 ? (totalEngagementsNumerator / totalReach) * 100 : 0;
