@@ -1,15 +1,19 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const GraphAPI = require('./src/graphApi');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Initialize GraphAPI instance
+const graphAPI = new GraphAPI();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Sample data for demonstration (you can replace this with real API calls)
+// Sample data for demonstration (fallback when real API fails)
 const sampleData = {
   march: {
     reach: 15420,
@@ -98,23 +102,53 @@ app.get('/api/instagram/all-months', (req, res) => {
   });
 });
 
-app.post('/api/instagram/kpis', (req, res) => {
-  const { startDate, endDate } = req.body;
+app.post('/api/instagram/kpis', async (req, res) => {
+  const { startDate, endDate, pageId } = req.body;
   
-  // Determine which month based on the date range
-  const start = new Date(startDate);
-  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june'];
-  const month = monthNames[start.getMonth()];
-  
-  if (!sampleData[month]) {
-    return res.status(400).json({ error: 'No data available for this period' });
-  }
-  
-  res.json({
-    instagram: {
-      kpis: sampleData[month]
+  try {
+    console.log(`📊 Fetching Instagram KPIs for period: ${startDate} to ${endDate}`);
+    
+    // Use real API calls with our GraphAPI class
+    const kpisData = await graphAPI.calculateInstagramKPIs(
+      null, // instagramBusinessAccountId (will use from env)
+      startDate,
+      endDate
+    );
+    
+    console.log('✅ Successfully fetched real Instagram KPIs');
+    
+    res.json({
+      instagram: {
+        kpis: kpisData
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching real Instagram KPIs:', error.message);
+    console.error('🔍 Full error details:', error);
+    console.error('📋 Error stack trace:', error.stack);
+    
+    // Fallback to sample data if real API fails
+    console.log('🔄 Falling back to sample data...');
+    
+    const start = new Date(startDate);
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june'];
+    const month = monthNames[start.getMonth()];
+    
+    if (!sampleData[month]) {
+      return res.status(400).json({ 
+        error: 'No data available for this period',
+        details: error.message 
+      });
     }
-  });
+    
+    res.json({
+      instagram: {
+        kpis: sampleData[month],
+        note: 'Using sample data due to API error'
+      }
+    });
+  }
 });
 
 // Serve static files from the dashboard

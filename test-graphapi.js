@@ -9,8 +9,7 @@ async function testGraphAPI() {
     // Test 1: Get Instagram insights
     console.log('📊 Testing Instagram Account Insights...');
     const insights = await graphAPI.getInstagramInsights([
-      'follower_count',   'profile_views',  'reach',
-     'impressions'
+      'follower_count',   'profile_views',  'reach'
     ], 'day');
     
     console.log('✅ Instagram insights retrieved successfully');

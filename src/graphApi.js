@@ -26,24 +26,42 @@ class GraphAPI {
     const chunks = [];
     let currentStart = new Date(start);
     const endDate = new Date(end);
+    let iterationCount = 0;
+    const maxIterations = 1000; // Safety limit to prevent infinite loops
 
-    while (currentStart.getTime() <= endDate.getTime()) {
-      let chunkEndDate = new Date(currentStart);
-      chunkEndDate.setDate(currentStart.getDate() + 6); // 7 days for better memory management
+    while (currentStart.getTime() <= endDate.getTime() && iterationCount < maxIterations) {
+      iterationCount++;
+      
+      let chunkActualEnd = new Date(currentStart);
+      chunkActualEnd.setDate(currentStart.getDate() + 2); // This sets the end of the 3-day chunk
 
-      if (chunkEndDate.getTime() > endDate.getTime()) {
-        chunkEndDate = new Date(endDate); // Ensure the last chunk doesn't go past the overall end date
+      // If the 3-day chunk end goes past the overall endDate, cap it at overall endDate
+      if (chunkActualEnd.getTime() > endDate.getTime()) {
+        chunkActualEnd = new Date(endDate);
       }
 
+      // The 'until' parameter for the API should be the day *after* chunkActualEnd
+      // This ensures that since < until for all API requests
+      let apiUntilDate = new Date(chunkActualEnd);
+      apiUntilDate.setDate(apiUntilDate.getDate() + 1);
+      apiUntilDate.setUTCHours(0,0,0,0); // Normalize to start of next day in UTC
+
       chunks.push({
-        since: currentStart.toISOString().split('T')[0], // Changed to YYYY-MM-DD
-        until: chunkEndDate.toISOString().split('T')[0]   // Changed to YYYY-MM-DD
+        since: currentStart.toISOString().split('T')[0],
+        until: apiUntilDate.toISOString().split('T')[0]
       });
 
-      currentStart.setDate(chunkEndDate.getDate() + 1); // Move to the next day after the chunk ends
-      currentStart.setHours(0,0,0,0); // Reset hours to avoid timezone issues affecting date arithmetic
+      // Move currentStart to the day after chunkActualEnd for the next iteration
+      currentStart = new Date(chunkActualEnd);
+      currentStart.setDate(currentStart.getDate() + 1);
+      currentStart.setHours(0,0,0,0); // Normalize to start of day
     }
-    console.log(`Generated ${chunks.length} date chunks for period (7-day intervals for memory efficiency).`);
+    
+    if (iterationCount >= maxIterations) {
+      console.warn(`⚠️ Warning: Reached maximum iterations (${maxIterations}) in _getDateChunks. This may indicate an infinite loop.`);
+    }
+    
+    console.log(`Generated ${chunks.length} date chunks for period (3-day intervals for memory efficiency).`);
     return chunks;
   }
 
@@ -57,7 +75,7 @@ class GraphAPI {
    * @param {string} cacheKeySuffix - Optional suffix to make cache key unique (e.g., for different periods).
    * @returns {Promise<object>} - An object containing 'data' which is an array of all fetched items.
    */
-  async makeRequest(endpoint, params = {}, retries = 3, delay = 1000, cacheKeySuffix = '') {
+  async makeRequest(endpoint, params = {}, retries = 3, delay = 1000, cacheKeySuffix = '', maxPageFetches = 20) { // Added maxPageFetches
     const cacheKey = `${endpoint}?${JSON.stringify(params)}_${cacheKeySuffix}`;
     
     // Check cache first
@@ -71,8 +89,13 @@ class GraphAPI {
     let allData = [];
     let currentUrl = url; // This will change for pagination
     let attempt = 0; // Tracks retry attempts for the current URL/page
+    let pageCount = 0; // Initialize page counter
 
     while (true) { // Loop to handle pagination and retries
+      if (pageCount >= maxPageFetches) {
+        console.warn(`WARNING: Max page fetches (${maxPageFetches}) reached for ${endpoint}. Stopping pagination to prevent infinite loop.`);
+        break; // Exit loop if max pages reached
+      }
       if (attempt > retries) {
         throw new Error(`Max retries reached for URL: ${url} (last attempted page: ${currentUrl}) due to rate limits or persistent errors.`);
       }
@@ -112,12 +135,14 @@ class GraphAPI {
           allData = allData.concat(responseData.data);
         }
 
+        pageCount++; // Increment page counter for each successful fetch attempt
+
         // Handle Pagination (check for 'next' link)
         if (responseData.paging && responseData.paging.next) {
           currentUrl = responseData.paging.next; // Update URL to fetch the next page
           attempt = 0; // Reset retry attempt counter for the new page
           delay = 1000; // Reset delay for the new page
-          console.log('Found next page for pagination. Continuing to fetch...');
+          console.log(`Found next page for pagination. Continuing to fetch... (Page ${pageCount}/${maxPageFetches})`);
         } else {
           currentUrl = null; // No more pages, exit loop
           console.log('No more pages for pagination. Finished fetching.');
@@ -182,12 +207,13 @@ class GraphAPI {
     
     // Combine requested metrics with default ones, ensuring uniqueness
     // Note: 'impressions' is deprecated in API v22+ and removed from default metrics
+    // Note: 'website_clicks' is returning 0 for this account, so removed to reduce API calls
     const insightsToFetchAll = [...new Set(metrics.concat([
-        'profile_views', 'reach', 'website_clicks'
+        'profile_views', 'reach'
     ]))];
 
     // Categorize metrics based on their compatibility with 'metric_type=total_value'
-    const metricsRequiringTotalValue = ['profile_views', 'website_clicks'];
+    const metricsRequiringTotalValue = ['profile_views'];
     const metricsForPeriodDay = insightsToFetchAll.filter(metric => !metricsRequiringTotalValue.includes(metric));
     const metricsForTotalValue = insightsToFetchAll.filter(metric => metricsRequiringTotalValue.includes(metric));
 
@@ -298,14 +324,17 @@ class GraphAPI {
 
       const params = {
         // Request likes, comments, saved, and shares explicitly from insights.metric
-        fields: 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count,insights.metric(likes,comments,saved,shares,reach,website_clicks)', 
+        fields: 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count,insights.metric(likes,comments,saved,shares,reach)', 
         limit: limit, // Initial limit for the first page of each chunk, makeRequest handles pagination within chunk
         since: chunk.since,
         until: chunk.until,
       };
       
+      console.log(`DEBUG: Calling makeRequest for posts with params: ${JSON.stringify(params)}`);
+      
       try {
         const result = await this.makeRequest(endpoint, params, 3, 1000, `igPosts-${accountId}-${chunk.since}-${chunk.until}`);
+        console.log(`DEBUG: Received ${result.data?.length || 0} posts for chunk ${i + 1}/${chunks.length}`);
         if (result.data) {
           allPostsData.push(...result.data);
         }
@@ -447,7 +476,7 @@ class GraphAPI {
     const endpoint = `/${mediaId}/insights`;
     // Request all potential engagement metrics at the media level
     const params = {
-      metric: 'likes,comments,saved,shares,reach,impressions,website_clicks' 
+      metric: 'likes,comments,saved,shares,reach,impressions' 
     };
     return await this.makeRequest(endpoint, params, 3, 1000, `mediaInsights-${mediaId}`); // Add cache suffix
   }
@@ -470,10 +499,11 @@ class GraphAPI {
     const startOfPeriod = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfPeriod = endDate ? new Date(endDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0);
     
-    // Fetch account-level insights (reach, profile_views, website_clicks)
+    // Fetch account-level insights (reach, profile_views)
     // Note: 'impressions' is deprecated in API v22+ and no longer supported
+    // Note: 'website_clicks' is returning 0 for this account, so removed to reduce API calls
     const accountInsights = await this.getInstagramInsights(
-      ['profile_views', 'reach', 'website_clicks'],
+      ['profile_views', 'reach'],
       'day', // Period is day for daily totals which will be summed later
       accountId, // Instagram Business Account ID
       startOfPeriod.toISOString(), // startDate
@@ -486,10 +516,18 @@ class GraphAPI {
     let endFollowers = 0;
     let averageFollowers = 0;
 
-    // Get current follower count from account info (simpler approach)
+    // Get current follower count from account info (direct API call for single object)
     try {
-      const accountInfo = await this.makeRequest(`/${accountId}`, { fields: 'followers_count' });
-      endFollowers = accountInfo.followers_count || 0;
+      const url = `${this.baseUrl}/${accountId}`;
+      const response = await axios.get(url, {
+        params: { 
+          fields: 'followers_count',
+          access_token: this.accessToken
+        },
+        timeout: 10000
+      });
+      
+      endFollowers = response.data.followers_count || 0;
       startFollowers = endFollowers; 
       averageFollowers = endFollowers; 
       console.log(`Current follower count: ${endFollowers}`);
@@ -519,7 +557,6 @@ class GraphAPI {
     console.log(`Fetched ${postsData.data?.length || 0} posts for KPI calculation.`);
 
     let totalEngagementsNumerator = 0; // This will be the numerator for the new Engagement Rate
-    let totalWebsiteClicks = 0;
     let totalOtherContactClicks = 0;
 
     if (postsData.data && postsData.data.length > 0) {
@@ -538,19 +575,32 @@ class GraphAPI {
 
         totalEngagementsNumerator += postLikes + postComments + postSaved + postShares;
         
-        const websiteClicksInsight = post.insights?.data?.find(i => i.name === 'website_clicks');
-        totalWebsiteClicks += websiteClicksInsight?.values?.[0]?.value || 0;
+        // Note: website_clicks is not available for individual post insights
+        // It's only available at the account level, which we fetch separately
       });
     }
 
     const getAccountMetricTotal = (metricName) => {
         const metric = accountInsights.data.find(m => m.name === metricName);
-        // Sum values across all daily entries for total_value if period='day' was used in insight fetching
-        if (metric?.values && metric.period === 'day') {
-            return metric.values.reduce((sum, day) => sum + (day.value || 0), 0);
+        
+        // Handle total_value format (for metrics like profile_views, website_clicks)
+        if (metric?.total_value?.value !== undefined) {
+            return metric.total_value.value;
         }
-        // Fallback for single total_value insight (if period='total_value' was primarily used)
-        return metric?.values?.[0]?.value || 0; 
+        
+        // Handle values array format (for metrics like reach)
+        if (metric?.values && Array.isArray(metric.values) && metric.values.length > 0) {
+            if (metric.period === 'day') {
+                // Sum values across all daily entries
+                return metric.values.reduce((sum, day) => sum + (day.value || 0), 0);
+            } else {
+                // Single value
+                return metric.values[0]?.value || 0;
+            }
+        }
+        
+        // Fallback
+        return 0;
     };
 
     // Note: get_directions_clicks, email_contacts, phone_call_clicks, text_message_clicks are not available in Instagram API
@@ -563,15 +613,16 @@ class GraphAPI {
     // Use Total Reach for engagement rate calculation denominator
     const engagementRatePercentage = totalReach > 0 ? (totalEngagementsNumerator / totalReach) * 100 : 0;
     
+    const profileViewsData = accountInsights.data.find(metric => metric.name === 'profile_views');
+    const totalProfileViews = getAccountMetricTotal('profile_views');
+    const totalWebsiteClicks = 0; // Set to 0 since website_clicks is not available for this account
+
     console.log('Engagement calculation details:');
     console.log(`  Total Engagements Numerator (Likes + Comments + Saved + Shares from posts): ${totalEngagementsNumerator}`);
     console.log(`  Total Reach (denominator): ${totalReach}`);
     console.log(`  Engagement rate (based on Reach): ${engagementRatePercentage}%`);
     console.log(`  Total website clicks from posts: ${totalWebsiteClicks}`);
     console.log(`  Total other contact clicks from insights: ${totalOtherContactClicks}`);
-
-    const profileViewsData = accountInsights.data.find(metric => metric.name === 'profile_views');
-    const totalProfileViews = getAccountMetricTotal('profile_views');
 
     return {
       followerGrowth: {
