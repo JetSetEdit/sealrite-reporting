@@ -27,9 +27,12 @@
     "express-validator": "^7.0.1",
     "flat-cache": "^6.1.11",
     "helmet": "^7.1.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.1",
     "moment": "^2.29.4",
     "open": "^10.2.0",
     "pdf-lib": "^1.17.1",
+    "puppeteer": "^24.14.0",
     "winston": "^3.9.0"
   },
   "devDependencies": {

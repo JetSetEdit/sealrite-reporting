@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const GraphAPI = require('./graphApi');
 const ExcelJS = require('exceljs');
-const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+const { jsPDF } = require('jspdf');
 require('dotenv').config();
 
 const app = express();
@@ -241,146 +241,134 @@ app.post('/api/export-report', async (req, res) => {
 
 // Generate PDF Report
 async function generatePDFReport(data, monthName) {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]); // A4 size
-  const { width, height } = page.getSize();
-  
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  
-  // Helper function to sanitize text and remove HTML tags
-  const sanitizeText = (text) => {
-    if (typeof text !== 'string') return String(text || 'N/A');
-    // Remove HTML tags and decode entities
-    return text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-  };
-  
-  // Helper function to format numbers
-  const formatNumber = (value) => {
-    if (value === null || value === undefined) return 'N/A';
-    return value.toLocaleString();
-  };
-  
-  // Helper function to format percentages
-  const formatPercentage = (value) => {
-    if (value === null || value === undefined) return 'N/A';
-    return `${Number(value).toFixed(2)}%`;
-  };
-  
-  let y = height - 50;
-  
-  // Title
-  page.drawText(`Instagram Analytics Report - ${sanitizeText(monthName)}`, {
-    x: 50,
-    y: y,
-    size: 24,
-    font: boldFont,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 40;
-  
-  // Engagement Rate
-  page.drawText('Engagement Rate (By Reach)', {
-    x: 50,
-    y: y,
-    size: 16,
-    font: boldFont,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 25;
-  page.drawText(formatPercentage(data.engagementRate?.percentage), {
-    x: 50,
-    y: y,
-    size: 14,
-    font: font,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 30;
-  
-  // Key Metrics - only include metrics that have actual data
-  const metrics = [
-    ['Total Engagements', formatNumber(data.engagementRate?.totalEngagementsNumerator)],
-    ['Total Reach', formatNumber(data.engagementRate?.denominatorValue)],
-    ['Profile Views', formatNumber(data.profileViews?.total)],
-    ['Posts', formatNumber(data.posts?.count)],
-    ['Follower Growth', formatPercentage(data.followerGrowth?.percentage)],
-    ['Contact Clicks', formatNumber(data.conversions?.otherContactClicks)]
-  ];
-  
-  // Only add website clicks if it has actual data (not null)
-  if (data.conversions?.websiteClicks !== null && data.conversions?.websiteClicks !== undefined) {
-    metrics.push(['Website Clicks', formatNumber(data.conversions?.websiteClicks)]);
-  }
-  
-  page.drawText('Key Metrics:', {
-    x: 50,
-    y: y,
-    size: 16,
-    font: boldFont,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 25;
-  
-  metrics.forEach(([label, value]) => {
-    page.drawText(`${label}: ${value}`, {
-      x: 50,
-      y: y,
-      size: 12,
-      font: font,
-      color: rgb(0, 0, 0)
-    });
-    y -= 20;
-  });
-  
-  y -= 20;
-  
-  // Formula
-  page.drawText('Formula:', {
-    x: 50,
-    y: y,
-    size: 14,
-    font: boldFont,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 20;
-  page.drawText(sanitizeText(data.engagementRate?.formula || '(Likes + Comments + Saved + Shares) / Total Reach * 100'), {
-    x: 50,
-    y: y,
-    size: 12,
-    font: font,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 30;
-  
-  // Reporting Period
-  if (data.reportingPeriod) {
-    page.drawText('Reporting Period:', {
-      x: 50,
-      y: y,
-      size: 14,
-      font: boldFont,
-      color: rgb(0, 0, 0)
+  try {
+    console.log('📄 Generating PDF report with jsPDF...');
+    
+    // Create a new PDF document
+    const doc = new jsPDF();
+    
+    // Helper function to sanitize text and remove HTML tags
+    const sanitizeText = (text) => {
+      if (typeof text !== 'string') return String(text || 'N/A');
+      // Remove HTML tags and decode entities
+      return text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    };
+    
+    // Helper function to format numbers
+    const formatNumber = (value) => {
+      if (value === null || value === undefined) return 'N/A';
+      return value.toLocaleString();
+    };
+    
+    // Helper function to format percentages
+    const formatPercentage = (value) => {
+      if (value === null || value === undefined) return 'N/A';
+      return `${Number(value).toFixed(2)}%`;
+    };
+    
+    let yPosition = 20;
+    
+    // Title
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Instagram Analytics Report - ${sanitizeText(monthName)}`, 20, yPosition);
+    yPosition += 15;
+    
+    // Date
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, yPosition);
+    yPosition += 20;
+    
+    // Reset text color
+    doc.setTextColor(0, 0, 0);
+    
+    // Engagement Rate
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Engagement Rate (By Reach)', 20, yPosition);
+    yPosition += 15;
+    
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatPercentage(data.engagementRate?.percentage), 20, yPosition);
+    yPosition += 20;
+    
+    // Key Metrics Section
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Key Metrics:', 20, yPosition);
+    yPosition += 15;
+    
+    // Key Metrics - only include metrics that have actual data
+    const metrics = [
+      ['Total Engagements', formatNumber(data.engagementRate?.totalEngagementsNumerator)],
+      ['Total Reach', formatNumber(data.engagementRate?.denominatorValue)],
+      ['Profile Views', formatNumber(data.profileViews?.total)],
+      ['Posts', formatNumber(data.posts?.count)],
+      ['Follower Growth', formatPercentage(data.followerGrowth?.percentage)],
+      ['Contact Clicks', formatNumber(data.conversions?.otherContactClicks)]
+    ];
+    
+    // Only add website clicks if it has actual data (not null)
+    if (data.conversions?.websiteClicks !== null && data.conversions?.websiteClicks !== undefined) {
+      metrics.push(['Website Clicks', formatNumber(data.conversions?.websiteClicks)]);
+    }
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    
+    metrics.forEach(([label, value]) => {
+      doc.text(`${label}: ${value}`, 20, yPosition);
+      yPosition += 12;
     });
     
-    y -= 20;
-    const startDate = new Date(data.reportingPeriod.start).toLocaleDateString();
-    const endDate = new Date(data.reportingPeriod.end).toLocaleDateString();
-    page.drawText(`${startDate} - ${endDate}`, {
-      x: 50,
-      y: y,
-      size: 12,
-      font: font,
-      color: rgb(0, 0, 0)
-    });
+    yPosition += 10;
+    
+    // Formula
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Formula:', 20, yPosition);
+    yPosition += 15;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(77, 77, 77);
+    doc.text(sanitizeText(data.engagementRate?.formula || '(Likes + Comments + Saved + Shares) / Total Reach * 100'), 20, yPosition);
+    yPosition += 20;
+    
+    // Reset text color
+    doc.setTextColor(0, 0, 0);
+    
+    // Reporting Period
+    if (data.reportingPeriod) {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Reporting Period:', 20, yPosition);
+      yPosition += 15;
+      
+      const startDate = new Date(data.reportingPeriod.start).toLocaleDateString();
+      const endDate = new Date(data.reportingPeriod.end).toLocaleDateString();
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${startDate} - ${endDate}`, 20, yPosition);
+      yPosition += 20;
+    }
+    
+    // Footer
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(128, 128, 128);
+    doc.text('Generated by SealRite Reporting System', 20, 280);
+    
+    console.log('✅ PDF report generated successfully with jsPDF');
+    return doc.output('arraybuffer');
+  } catch (error) {
+    console.error('❌ Error generating PDF report:', error);
+    throw error;
   }
-  
-  return await pdfDoc.save();
 }
 
 // Generate Excel Report

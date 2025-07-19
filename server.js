@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const GraphAPI = require('./src/graphApi');
 const ExcelJS = require('exceljs');
-const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+const puppeteer = require('puppeteer');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -225,11 +225,95 @@ app.get('/api/debug/pdf-test', async (req, res) => {
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Accept-Ranges', 'bytes');
     res.send(buffer);
     
     console.log('✅ PDF test successful');
   } catch (error) {
     console.error('❌ PDF test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+// Alternative debug endpoint that returns HTML with embedded PDF
+app.get('/api/debug/pdf-test-html', async (req, res) => {
+  try {
+    console.log('🔍 Testing PDF generation with HTML wrapper...');
+    
+    const sampleData = {
+      followerGrowth: {
+        percentage: 5.2,
+        startCount: 1000,
+        endCount: 1052,
+        formula: '(End Followers - Start Followers) / Start Followers * 100'
+      },
+      engagementRate: {
+        percentage: 2.5,
+        totalEngagementsNumerator: 250,
+        denominatorValue: 10000,
+        formula: '(Likes + Comments + Saved + Shares) / Total Reach * 100',
+        note: 'Rate is based on Total Reach. Numerator includes Likes, Comments, Saves, and Shares where available from post insights.'
+      },
+      profileViews: {
+        total: 1500,
+        period: 'monthly'
+      },
+      reach: {
+        total: 10000,
+        period: 'monthly'
+      },
+      posts: {
+        count: 12,
+        data: []
+      },
+      conversions: {
+        websiteClicks: null,
+        otherContactClicks: 25
+      },
+      reportingPeriod: {
+        start: '2025-06-01T00:00:00.000Z',
+        end: '2025-06-30T00:00:00.000Z'
+      }
+    };
+
+    const buffer = await generatePDFReport(sampleData, 'Test Month');
+    const base64PDF = buffer.toString('base64');
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>PDF Preview - Test Month</title>
+        <style>
+          body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+          .pdf-container { width: 100%; height: 90vh; border: 1px solid #ccc; }
+          .header { margin-bottom: 20px; }
+          .download-link { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>PDF Preview - Test Month</h1>
+          <a href="data:application/pdf;base64,${base64PDF}" download="test-report.pdf" class="download-link">Download PDF</a>
+        </div>
+        <div class="pdf-container">
+          <embed src="data:application/pdf;base64,${base64PDF}" type="application/pdf" width="100%" height="100%">
+        </div>
+      </body>
+      </html>
+    `;
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+    
+    console.log('✅ PDF HTML test successful');
+  } catch (error) {
+    console.error('❌ PDF HTML test failed:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -300,6 +384,8 @@ app.post('/api/export-report', async (req, res) => {
       // For PDF preview, show in browser
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Accept-Ranges', 'bytes');
       res.send(buffer);
     } else {
       // For download, force download
@@ -319,146 +405,203 @@ app.post('/api/export-report', async (req, res) => {
 
 // Generate PDF Report
 async function generatePDFReport(data, monthName) {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]); // A4 size
-  const { width, height } = page.getSize();
-  
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  
-  // Helper function to sanitize text and remove HTML tags
-  const sanitizeText = (text) => {
-    if (typeof text !== 'string') return String(text || 'N/A');
-    // Remove HTML tags and decode entities
-    return text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-  };
-  
-  // Helper function to format numbers
-  const formatNumber = (value) => {
-    if (value === null || value === undefined) return 'N/A';
-    return value.toLocaleString();
-  };
-  
-  // Helper function to format percentages
-  const formatPercentage = (value) => {
-    if (value === null || value === undefined) return 'N/A';
-    return `${Number(value).toFixed(2)}%`;
-  };
-  
-  let y = height - 50;
-  
-  // Title
-  page.drawText(`Instagram Analytics Report - ${sanitizeText(monthName)}`, {
-    x: 50,
-    y: y,
-    size: 24,
-    font: boldFont,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 40;
-  
-  // Engagement Rate
-  page.drawText('Engagement Rate (By Reach)', {
-    x: 50,
-    y: y,
-    size: 16,
-    font: boldFont,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 25;
-  page.drawText(formatPercentage(data.engagementRate?.percentage), {
-    x: 50,
-    y: y,
-    size: 14,
-    font: font,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 30;
-  
-  // Key Metrics - only include metrics that have actual data
-  const metrics = [
-    ['Total Engagements', formatNumber(data.engagementRate?.totalEngagementsNumerator)],
-    ['Total Reach', formatNumber(data.engagementRate?.denominatorValue)],
-    ['Profile Views', formatNumber(data.profileViews?.total)],
-    ['Posts', formatNumber(data.posts?.count)],
-    ['Follower Growth', formatPercentage(data.followerGrowth?.percentage)],
-    ['Contact Clicks', formatNumber(data.conversions?.otherContactClicks)]
-  ];
-  
-  // Only add website clicks if it has actual data (not null)
-  if (data.conversions?.websiteClicks !== null && data.conversions?.websiteClicks !== undefined) {
-    metrics.push(['Website Clicks', formatNumber(data.conversions?.websiteClicks)]);
-  }
-  
-  page.drawText('Key Metrics:', {
-    x: 50,
-    y: y,
-    size: 16,
-    font: boldFont,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 25;
-  
-  metrics.forEach(([label, value]) => {
-    page.drawText(`${label}: ${value}`, {
-      x: 50,
-      y: y,
-      size: 12,
-      font: font,
-      color: rgb(0, 0, 0)
-    });
-    y -= 20;
-  });
-  
-  y -= 20;
-  
-  // Formula
-  page.drawText('Formula:', {
-    x: 50,
-    y: y,
-    size: 14,
-    font: boldFont,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 20;
-  page.drawText(sanitizeText(data.engagementRate?.formula || '(Likes + Comments + Saved + Shares) / Total Reach * 100'), {
-    x: 50,
-    y: y,
-    size: 12,
-    font: font,
-    color: rgb(0, 0, 0)
-  });
-  
-  y -= 30;
-  
-  // Reporting Period
-  if (data.reportingPeriod) {
-    page.drawText('Reporting Period:', {
-      x: 50,
-      y: y,
-      size: 14,
-      font: boldFont,
-      color: rgb(0, 0, 0)
+  try {
+    console.log('📄 Generating PDF report with Puppeteer...');
+    
+    // Helper function to sanitize text and remove HTML tags
+    const sanitizeText = (text) => {
+      if (typeof text !== 'string') return String(text || 'N/A');
+      return text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    };
+
+    const formatNumber = (value) => {
+      if (value === null || value === undefined) return 'N/A';
+      return value.toLocaleString();
+    };
+
+    const formatPercentage = (value) => {
+      if (value === null || value === undefined) return 'N/A';
+      return `${Number(value).toFixed(2)}%`;
+    };
+
+    // Create HTML content for the PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Instagram Analytics Report - ${sanitizeText(monthName)}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+            color: #333;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 20px;
+          }
+          .title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+          }
+          .date {
+            font-size: 14px;
+            color: #666;
+          }
+          .section {
+            margin-bottom: 25px;
+          }
+          .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+          }
+          .metric {
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+          }
+          .metric-label {
+            font-weight: bold;
+            color: #495057;
+          }
+          .metric-value {
+            font-size: 18px;
+            color: #007bff;
+            margin-left: 10px;
+          }
+          .formula {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #495057;
+          }
+          .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="title">Instagram Analytics Report - ${sanitizeText(monthName)}</div>
+          <div class="date">Generated on: ${new Date().toLocaleDateString()}</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Engagement Rate (By Reach)</div>
+          <div class="metric">
+            <span class="metric-label">Engagement Rate:</span>
+            <span class="metric-value">${formatPercentage(data.engagementRate?.percentage)}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Key Metrics</div>
+          <div class="metric">
+            <span class="metric-label">Total Engagements:</span>
+            <span class="metric-value">${formatNumber(data.engagementRate?.totalEngagementsNumerator)}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Total Reach:</span>
+            <span class="metric-value">${formatNumber(data.engagementRate?.denominatorValue)}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Profile Views:</span>
+            <span class="metric-value">${formatNumber(data.profileViews?.total)}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Posts:</span>
+            <span class="metric-value">${formatNumber(data.posts?.count)}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Follower Growth:</span>
+            <span class="metric-value">${formatPercentage(data.followerGrowth?.percentage)}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Contact Clicks:</span>
+            <span class="metric-value">${formatNumber(data.conversions?.otherContactClicks)}</span>
+          </div>
+          ${data.conversions?.websiteClicks !== null && data.conversions?.websiteClicks !== undefined ? 
+            `<div class="metric">
+              <span class="metric-label">Website Clicks:</span>
+              <span class="metric-value">${formatNumber(data.conversions?.websiteClicks)}</span>
+            </div>` : ''
+          }
+        </div>
+
+        <div class="section">
+          <div class="section-title">Formula</div>
+          <div class="formula">
+            ${sanitizeText(data.engagementRate?.formula || '(Likes + Comments + Saved + Shares) / Total Reach * 100')}
+          </div>
+        </div>
+
+        ${data.reportingPeriod ? `
+        <div class="section">
+          <div class="section-title">Reporting Period</div>
+          <div class="metric">
+            <span class="metric-label">From:</span>
+            <span class="metric-value">${new Date(data.reportingPeriod.start).toLocaleDateString()}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">To:</span>
+            <span class="metric-value">${new Date(data.reportingPeriod.end).toLocaleDateString()}</span>
+          </div>
+        </div>
+        ` : ''}
+
+        <div class="footer">
+          Generated by SealRite Reporting System
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Launch browser and generate PDF
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     
-    y -= 20;
-    const startDate = new Date(data.reportingPeriod.start).toLocaleDateString();
-    const endDate = new Date(data.reportingPeriod.end).toLocaleDateString();
-    page.drawText(`${startDate} - ${endDate}`, {
-      x: 50,
-      y: y,
-      size: 12,
-      font: font,
-      color: rgb(0, 0, 0)
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      margin: {
+        top: '20mm',
+        right: '20mm',
+        bottom: '20mm',
+        left: '20mm'
+      },
+      printBackground: true
     });
+    
+    await browser.close();
+    
+    console.log('✅ PDF report generated successfully with Puppeteer');
+    return pdfBuffer;
+  } catch (error) {
+    console.error('❌ Error generating PDF report:', error);
+    throw error;
   }
-  
-  return await pdfDoc.save();
 }
 
 // Generate Excel Report
