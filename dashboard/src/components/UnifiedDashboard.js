@@ -69,7 +69,7 @@ const UnifiedDashboard = () => {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:3001/api/instagram/kpis', {
+      const response = await fetch('/api/instagram/kpis', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -142,7 +142,7 @@ const UnifiedDashboard = () => {
 
     setExporting(true);
     try {
-      const response = await fetch('http://localhost:3001/api/export-report', {
+      const response = await fetch('/api/export-report', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

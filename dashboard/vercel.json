@@ -1,0 +1,25 @@
+{
+  "functions": {
+    "api/instagram/kpis.js": {
+      "maxDuration": 30
+    },
+    "api/export-report.js": {
+      "maxDuration": 60
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "FACEBOOK_ACCESS_TOKEN": "@facebook-access-token",
+    "INSTAGRAM_BUSINESS_ACCOUNT_ID": "@instagram-business-account-id",
+    "FACEBOOK_PAGE_ID": "@facebook-page-id"
+  }
+} 

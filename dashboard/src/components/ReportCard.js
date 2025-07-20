@@ -107,6 +107,19 @@ const ReportCard = () => {
     fetchReportData(true);
   };
 
+  // Helper function to convert blob to base64
+  const blobToBase64 = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const handleExport = async (format, preview = false) => {
     if (!reportData) {
       alert('No data available to export');
@@ -138,14 +151,47 @@ const ReportCard = () => {
       console.log('Response type:', response.type);
 
       if (preview && format === 'pdf') {
-        // For PDF preview, open in new tab
+        // For PDF preview, open in new tab with HTML wrapper
         try {
           console.log('Creating PDF preview...');
           const blob = await response.blob();
           console.log('Blob created:', blob);
           const url = window.URL.createObjectURL(blob);
           console.log('URL created:', url);
-          window.open(url, '_blank');
+          
+          // Create a new window with HTML wrapper
+          const newWindow = window.open('', '_blank');
+          const base64PDF = await blobToBase64(blob);
+          
+          newWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>PDF Preview - ${monthNames[selectedMonth]}</title>
+              <style>
+                body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background: #f5f5f5; }
+                .pdf-container { width: 100%; height: 90vh; border: 1px solid #ccc; background: white; }
+                .header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+                .download-link { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+                .close-btn { padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; }
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <h1>PDF Preview - ${monthNames[selectedMonth]}</h1>
+                <div>
+                  <a href="data:application/pdf;base64,${base64PDF}" download="instagram-report-${selectedMonth}.pdf" class="download-link">Download PDF</a>
+                  <button onclick="window.close()" class="close-btn">Close</button>
+                </div>
+              </div>
+              <div class="pdf-container">
+                <embed src="data:application/pdf;base64,${base64PDF}" type="application/pdf" width="100%" height="100%">
+              </div>
+            </body>
+            </html>
+          `);
+          newWindow.document.close();
+          
           window.URL.revokeObjectURL(url);
           alert('PDF preview opened in new tab');
         } catch (previewError) {
