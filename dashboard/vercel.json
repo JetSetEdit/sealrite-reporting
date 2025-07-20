@@ -16,10 +16,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "env": {
-    "FACEBOOK_ACCESS_TOKEN": "@facebook-access-token",
-    "INSTAGRAM_BUSINESS_ACCOUNT_ID": "@instagram-business-account-id",
-    "FACEBOOK_PAGE_ID": "@facebook-page-id"
-  }
+  ]
 } 
