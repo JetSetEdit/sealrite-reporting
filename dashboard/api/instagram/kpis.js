@@ -18,6 +18,13 @@ export default async function handler(req, res) {
   console.log('  - FACEBOOK_ACCESS_TOKEN:', process.env.FACEBOOK_ACCESS_TOKEN ? 'SET (' + process.env.FACEBOOK_ACCESS_TOKEN.substring(0, 10) + '...)' : 'NOT SET');
   console.log('  - INSTAGRAM_BUSINESS_ACCOUNT_ID:', process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID ? 'SET (' + process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID + ')' : 'NOT SET');
   console.log('  - FACEBOOK_PAGE_ID:', process.env.FACEBOOK_PAGE_ID ? 'SET (' + process.env.FACEBOOK_PAGE_ID + ')' : 'NOT SET');
+  
+  // Additional debugging for Vercel environment
+  console.log('🔧 Vercel Environment Debug:');
+  console.log('  - NODE_ENV:', process.env.NODE_ENV);
+  console.log('  - VERCEL_ENV:', process.env.VERCEL_ENV);
+  console.log('  - VERCEL_REGION:', process.env.VERCEL_REGION);
+  console.log('  - All env keys:', Object.keys(process.env).filter(key => key.includes('FACEBOOK') || key.includes('INSTAGRAM')).join(', '));
 
   try {
     // Check for required environment variables
