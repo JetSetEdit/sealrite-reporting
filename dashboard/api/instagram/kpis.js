@@ -17,114 +17,164 @@ export default async function handler(req, res) {
   console.log('📋 Environment variables check:');
   console.log('  - FACEBOOK_ACCESS_TOKEN:', process.env.FACEBOOK_ACCESS_TOKEN ? 'SET (' + process.env.FACEBOOK_ACCESS_TOKEN.substring(0, 10) + '...)' : 'NOT SET');
   console.log('  - INSTAGRAM_BUSINESS_ACCOUNT_ID:', process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID ? 'SET (' + process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID + ')' : 'NOT SET');
-  console.log('  - FACEBOOK_PAGE_ID:', process.env.FACEBOOK_PAGE_ID ? 'SET' : 'NOT SET');
+  console.log('  - FACEBOOK_PAGE_ID:', process.env.FACEBOOK_PAGE_ID ? 'SET (' + process.env.FACEBOOK_PAGE_ID + ')' : 'NOT SET');
 
   try {
-    // HYBRID APPROACH: Try real API first, fallback to sample data
-    console.log('🚀 HYBRID APPROACH: Attempting real Facebook API call...');
-    
-    const { pageId, startDate, endDate, forceRefresh } = req.body || {};
-    
-    // Use a very short date range for faster response
-    const testStartDate = '2025-03-01T00:00:00.000Z';
-    const testEndDate = '2025-03-03T23:59:59.999Z'; // Just 3 days for speed
-    
-    console.log('📅 Using short date range for speed:', testStartDate, 'to', testEndDate);
-    
-    // Set a short timeout (10 seconds) for the real API call
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Real API timeout after 10 seconds')), 10000);
-    });
+    // Check for required environment variables
+    if (!process.env.FACEBOOK_ACCESS_TOKEN) {
+      console.log('❌ Missing FACEBOOK_ACCESS_TOKEN');
+      return res.status(500).json({
+        error: 'Missing FACEBOOK_ACCESS_TOKEN',
+        message: 'Facebook Access Token is not configured',
+        testMode: req.body.testMode || 'unknown'
+      });
+    }
 
-    const GraphAPI = require('../../src/graphApi.js');
+    if (!process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID) {
+      console.log('❌ Missing INSTAGRAM_BUSINESS_ACCOUNT_ID');
+      return res.status(500).json({
+        error: 'Missing INSTAGRAM_BUSINESS_ACCOUNT_ID',
+        message: 'Instagram Business Account ID is not configured',
+        testMode: req.body.testMode || 'unknown'
+      });
+    }
+
+    console.log('✅ Environment variables are set');
+
+    // Import GraphAPI
+    const GraphAPI = require('../../../src/graphApi.js');
     const graphAPI = new GraphAPI();
 
-    // Try real API call with timeout
-    const realApiPromise = graphAPI.calculateInstagramKPIs(
-      pageId || process.env.FACEBOOK_PAGE_ID,
-      testStartDate,
-      testEndDate,
-      forceRefresh || true
-    );
+    const { pageId, startDate, endDate, forceRefresh, testMode } = req.body;
 
-    console.log('📡 Making real Facebook API call...');
-    const realData = await Promise.race([realApiPromise, timeoutPromise]);
-    
-    console.log('✅ REAL API SUCCESS! Got real data from Facebook');
-    console.log('📊 Real data received:', JSON.stringify(realData, null, 2));
+    console.log('🔧 Test mode:', testMode);
+    console.log('📅 Date range:', startDate, 'to', endDate);
 
-    res.status(200).json({
-      ...realData,
-      source: 'real_facebook_api',
-      note: 'Real data from Facebook Graph API',
-      environment: {
-        facebookTokenSet: !!process.env.FACEBOOK_ACCESS_TOKEN,
-        instagramAccountSet: !!process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID,
-        facebookPageSet: !!process.env.FACEBOOK_PAGE_ID
-      }
-    });
+    // Handle different test modes
+    let result = {};
+
+    switch (testMode) {
+      case 'pageId':
+        console.log('🧪 Testing Page ID validation...');
+        try {
+          const pageInfo = await graphAPI.getPageInfo(pageId);
+          result = {
+            testMode: 'pageId',
+            success: true,
+            pageInfo,
+            message: 'Page ID validation successful'
+          };
+        } catch (error) {
+          console.log('❌ Page ID test failed:', error.message);
+          result = {
+            testMode: 'pageId',
+            success: false,
+            error: error.message,
+            message: 'Page ID validation failed'
+          };
+        }
+        break;
+
+      case 'followers':
+        console.log('🧪 Testing followers fetch...');
+        try {
+          const followers = await graphAPI.getFollowers(pageId, startDate, endDate);
+          result = {
+            testMode: 'followers',
+            success: true,
+            followers,
+            message: 'Followers fetch successful'
+          };
+        } catch (error) {
+          console.log('❌ Followers test failed:', error.message);
+          result = {
+            testMode: 'followers',
+            success: false,
+            error: error.message,
+            message: 'Followers fetch failed'
+          };
+        }
+        break;
+
+      case 'profileViews':
+        console.log('🧪 Testing profile views fetch...');
+        try {
+          const profileViews = await graphAPI.getProfileViews(pageId, startDate, endDate);
+          result = {
+            testMode: 'profileViews',
+            success: true,
+            profileViews,
+            message: 'Profile views fetch successful'
+          };
+        } catch (error) {
+          console.log('❌ Profile views test failed:', error.message);
+          result = {
+            testMode: 'profileViews',
+            success: false,
+            error: error.message,
+            message: 'Profile views fetch failed'
+          };
+        }
+        break;
+
+      case 'posts':
+        console.log('🧪 Testing posts and engagement fetch...');
+        try {
+          const posts = await graphAPI.getPosts(pageId, startDate, endDate);
+          result = {
+            testMode: 'posts',
+            success: true,
+            posts,
+            message: 'Posts and engagement fetch successful'
+          };
+        } catch (error) {
+          console.log('❌ Posts test failed:', error.message);
+          result = {
+            testMode: 'posts',
+            success: false,
+            error: error.message,
+            message: 'Posts and engagement fetch failed'
+          };
+        }
+        break;
+
+      case 'full':
+      default:
+        console.log('🧪 Testing full KPI calculation...');
+        try {
+          const kpis = await graphAPI.calculateInstagramKPIs(pageId, startDate, endDate, forceRefresh);
+          result = {
+            testMode: 'full',
+            success: true,
+            kpis,
+            message: 'Full KPI calculation successful'
+          };
+        } catch (error) {
+          console.log('❌ Full KPI test failed:', error.message);
+          result = {
+            testMode: 'full',
+            success: false,
+            error: error.message,
+            message: 'Full KPI calculation failed'
+          };
+        }
+        break;
+    }
+
+    console.log('✅ Test completed successfully');
+    console.log('📊 Result:', JSON.stringify(result, null, 2));
+
+    return res.status(200).json(result);
 
   } catch (error) {
-    console.error('❌ Real API failed:', error.message);
-    console.log('🔄 Falling back to sample data...');
+    console.log('💥 Unexpected error:', error.message);
+    console.log('💥 Error stack:', error.stack);
     
-    // Fallback to sample data
-    const sampleData = {
-      followerGrowth: {
-        percentage: 8.5,
-        startCount: 1150,
-        endCount: 1250,
-        formula: "(End Followers - Start Followers) / Start Followers * 100"
-      },
-      engagementRate: {
-        percentage: 10.25,
-        totalEngagementsNumerator: 1602,
-        denominatorValue: 15420,
-        formula: "(Likes + Comments + Saved + Shares) / Total Reach * 100",
-        note: "Rate is based on Total Reach. Numerator includes Likes, Comments, Saves, and Shares where available from post insights."
-      },
-      profileViews: {
-        total: 890,
-        period: "monthly"
-      },
-      reach: {
-        total: 15420,
-        period: "monthly"
-      },
-      impressions: {
-        total: 23450,
-        period: "monthly"
-      },
-      posts: {
-        count: 12,
-        data: [
-          {
-            id: "sample_post_1",
-            caption: "Sample post for testing",
-            likes: 45,
-            comments: 12,
-            reach: 1200
-          }
-        ]
-      },
-      conversions: {
-        websiteClicks: 156,
-        otherContactClicks: 23
-      },
-      reportingPeriod: {
-        start: "2025-03-01T00:00:00.000Z",
-        end: "2025-03-03T23:59:59.999Z"
-      },
-      source: 'sample_data_fallback',
-      note: `Sample data - Real API failed: ${error.message}`,
-      environment: {
-        facebookTokenSet: !!process.env.FACEBOOK_ACCESS_TOKEN,
-        instagramAccountSet: !!process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID,
-        facebookPageSet: !!process.env.FACEBOOK_PAGE_ID
-      }
-    };
-    
-    console.log('✅ Sample data fallback generated');
-    res.status(200).json(sampleData);
+    return res.status(500).json({
+      error: 'Unexpected error',
+      message: error.message,
+      testMode: req.body.testMode || 'unknown',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 } 
