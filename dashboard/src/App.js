@@ -24,8 +24,8 @@ function App() {
         
         const requestBody = {
           pageId: process.env.REACT_APP_FACEBOOK_PAGE_ID || '651877034666676',
-          startDate: '2025-06-01T00:00:00.000Z',
-          endDate: '2025-06-30T23:59:59.999Z',
+          startDate: '2025-03-01T00:00:00.000Z',
+          endDate: '2025-03-31T23:59:59.999Z',
           forceRefresh: false
         };
         
