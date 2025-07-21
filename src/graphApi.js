@@ -177,16 +177,20 @@ Your Facebook access token has expired. Here's how to fix it:
 
       try {
         const finalUrl = currentUrl || url;
-        console.log(`Making request attempt ${attempt + 1} to: ${finalUrl} (initial endpoint: ${endpoint})`);
+        const startTime = Date.now();
+        console.log(`🚀 Making request attempt ${attempt + 1} to: ${finalUrl} (initial endpoint: ${endpoint})`);
+        console.log(`⏱️ Request started at: ${new Date().toISOString()}`);
         console.log(`DEBUG: Making request to final URL: ${finalUrl} with params:`, (currentUrl === url ? { access_token: this.accessToken, ...params } : {}));
         
         const response = await axios.get(finalUrl, {
           params: (currentUrl === url ? { access_token: this.accessToken, ...params } : {}), // Params only for the first call
           validateStatus: (status) => status >= 200 && status < 500, // Do not throw for 4xx errors; handle them manually
-          timeout: 20000 // 20-second timeout for API calls
+          timeout: 60000 // 60-second timeout for API calls (increased from 20s to handle slow Instagram API responses)
         });
 
-        console.log('API response status:', response.status);
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        console.log(`✅ API response received in ${duration}ms - Status: ${response.status}`);
         
         // Handle Rate Limit (HTTP 429) specifically
         if (response.status === 429) {
@@ -242,6 +246,20 @@ Your Facebook access token has expired. Here's how to fix it:
           console.error('🔑 TOKEN EXPIRED ERROR DETECTED');
           console.error(this.getTokenExpirationHelp());
           throw error; // Re-throw the token expired error without retrying
+        }
+        
+        // Handle timeout errors specifically
+        if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+          console.log(`⏰ Timeout error on attempt ${attempt + 1} for ${currentUrl || url}. Retrying in ${delay / 1000} seconds...`);
+          if (attempt < retries) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            attempt++;
+            delay *= 2;
+            continue; // Retry the same URL/page
+          } else {
+            console.error(`❌ Max retries reached for timeout errors on ${url}`);
+            throw new Error(`Request timed out after ${retries} attempts. The Instagram API may be experiencing high load.`);
+          }
         }
         
         // If it's a network error or an error before response.status could be checked, retry
@@ -635,7 +653,7 @@ Your Facebook access token has expired. Here's how to fix it:
           fields: 'followers_count',
           access_token: this.accessToken
         },
-        timeout: 10000
+        timeout: 30000 // 30-second timeout for follower count requests
       });
       
       endFollowers = response.data.followers_count || 0;
@@ -770,6 +788,86 @@ Your Facebook access token has expired. Here's how to fix it:
   } catch (error) {
     console.error('Error calculating Instagram KPIs:', error);
     throw error;
+  }
+
+  /**
+   * Get Instagram followers data for a specific period
+   */
+  async getFollowers(pageId, startDate, endDate) {
+    console.log('📊 Fetching followers data...');
+    
+    try {
+      const followersData = await this.getInstagramInsights(
+        ['follower_count'],
+        'day',
+        this.instagramBusinessAccountId,
+        startDate,
+        endDate
+      );
+      
+      console.log('✅ Followers data fetched successfully');
+      return {
+        success: true,
+        data: followersData,
+        period: { startDate, endDate }
+      };
+    } catch (error) {
+      console.log('❌ Error fetching followers:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Instagram profile views for a specific period
+   */
+  async getProfileViews(pageId, startDate, endDate) {
+    console.log('📊 Fetching profile views data...');
+    
+    try {
+      const profileViewsData = await this.getInstagramInsights(
+        ['profile_views'],
+        'day',
+        this.instagramBusinessAccountId,
+        startDate,
+        endDate
+      );
+      
+      console.log('✅ Profile views data fetched successfully');
+      return {
+        success: true,
+        data: profileViewsData,
+        period: { startDate, endDate }
+      };
+    } catch (error) {
+      console.log('❌ Error fetching profile views:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Instagram posts and engagement data for a specific period
+   */
+  async getPosts(pageId, startDate, endDate) {
+    console.log('📊 Fetching posts and engagement data...');
+    
+    try {
+      const postsData = await this.getInstagramPosts(
+        100, // limit
+        this.instagramBusinessAccountId,
+        startDate,
+        endDate
+      );
+      
+      console.log('✅ Posts data fetched successfully');
+      return {
+        success: true,
+        data: postsData,
+        period: { startDate, endDate }
+      };
+    } catch (error) {
+      console.log('❌ Error fetching posts:', error.message);
+      throw error;
+    }
   }
 }
 

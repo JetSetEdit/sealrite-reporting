@@ -13,6 +13,7 @@
     "help": "node src/cli.js help",
     "test": "jest",
     "test-connection": "node src/testConnection.js",
+    "test-timeout": "node test-timeout-fix.js",
     "find-pages": "node src/findPageId.js",
     "build-dashboard": "cd dashboard && npm run build",
     "dev-dashboard": "cd dashboard && npm start"

@@ -15,6 +15,14 @@ const graphAPI = new GraphAPI();
 app.use(cors());
 app.use(express.json());
 
+// Set server timeouts to handle long-running API calls
+app.use((req, res, next) => {
+  // Set timeout to 5 minutes for all requests
+  req.setTimeout(300000); // 5 minutes
+  res.setTimeout(300000); // 5 minutes
+  next();
+});
+
 // Sample data for demonstration (fallback when real API fails)
 const sampleData = {
   march: {
