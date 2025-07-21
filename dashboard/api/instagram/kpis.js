@@ -20,39 +20,67 @@ export default async function handler(req, res) {
   console.log('  - FACEBOOK_PAGE_ID:', process.env.FACEBOOK_PAGE_ID ? 'SET' : 'NOT SET');
 
   try {
-    // Set a timeout for the entire function
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Function timeout after 25 seconds')), 25000);
-    });
-
-    // OPTIMIZATION: Use a shorter date range for faster response
-    const { pageId, startDate, endDate, forceRefresh } = req.body || {};
+    // FAST TEST: Return sample data immediately to test environment variables
+    console.log('⚡ FAST TEST: Returning sample data to test environment variables');
     
-    // Use a shorter date range (1 week instead of 1 month) for faster response
-    const optimizedStartDate = '2025-03-01T00:00:00.000Z';
-    const optimizedEndDate = '2025-03-07T23:59:59.999Z'; // Just 1 week for testing
+    const sampleData = {
+      followerGrowth: {
+        percentage: 8.5,
+        startCount: 1150,
+        endCount: 1250,
+        formula: "(End Followers - Start Followers) / Start Followers * 100"
+      },
+      engagementRate: {
+        percentage: 10.25,
+        totalEngagementsNumerator: 1602,
+        denominatorValue: 15420,
+        formula: "(Likes + Comments + Saved + Shares) / Total Reach * 100",
+        note: "Rate is based on Total Reach. Numerator includes Likes, Comments, Saves, and Shares where available from post insights."
+      },
+      profileViews: {
+        total: 890,
+        period: "monthly"
+      },
+      reach: {
+        total: 15420,
+        period: "monthly"
+      },
+      impressions: {
+        total: 23450,
+        period: "monthly"
+      },
+      posts: {
+        count: 12,
+        data: [
+          {
+            id: "sample_post_1",
+            caption: "Sample post for testing",
+            likes: 45,
+            comments: 12,
+            reach: 1200
+          }
+        ]
+      },
+      conversions: {
+        websiteClicks: 156,
+        otherContactClicks: 23
+      },
+      reportingPeriod: {
+        start: "2025-03-01T00:00:00.000Z",
+        end: "2025-03-07T23:59:59.999Z"
+      },
+      environment: {
+        facebookTokenSet: !!process.env.FACEBOOK_ACCESS_TOKEN,
+        instagramAccountSet: !!process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID,
+        facebookPageSet: !!process.env.FACEBOOK_PAGE_ID
+      },
+      note: "Sample data for testing environment variables and API connectivity"
+    };
     
-    console.log('⚡ OPTIMIZATION: Using shorter date range for faster response');
-    console.log('📅 Original range:', startDate, 'to', endDate);
-    console.log('📅 Optimized range:', optimizedStartDate, 'to', optimizedEndDate);
+    console.log('✅ Sample data generated successfully!');
+    console.log('📊 Environment status:', sampleData.environment);
 
-    const GraphAPI = require('../../src/graphApi.js');
-    const graphAPI = new GraphAPI();
-
-    // Race between the API call and timeout
-    const apiPromise = graphAPI.calculateInstagramKPIs(
-      pageId || process.env.FACEBOOK_PAGE_ID,
-      optimizedStartDate,
-      optimizedEndDate,
-      forceRefresh || true
-    );
-
-    const data = await Promise.race([apiPromise, timeoutPromise]);
-    
-    console.log('✅ API call completed successfully!');
-    console.log('📊 Data received:', JSON.stringify(data, null, 2));
-
-    res.status(200).json(data);
+    res.status(200).json(sampleData);
 
   } catch (error) {
     console.error('❌ API Error:', error.message);
@@ -61,7 +89,7 @@ export default async function handler(req, res) {
     res.status(500).json({
       error: 'API Error',
       message: error.message,
-      details: 'Function timed out or encountered an error. Try using a shorter date range.',
+      details: 'Function encountered an error while generating sample data.',
       timestamp: new Date().toISOString()
     });
   }
