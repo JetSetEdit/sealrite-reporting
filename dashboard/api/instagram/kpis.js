@@ -20,9 +20,55 @@ export default async function handler(req, res) {
   console.log('  - FACEBOOK_PAGE_ID:', process.env.FACEBOOK_PAGE_ID ? 'SET' : 'NOT SET');
 
   try {
-    // FAST TEST: Return sample data immediately to test environment variables
-    console.log('⚡ FAST TEST: Returning sample data to test environment variables');
+    // HYBRID APPROACH: Try real API first, fallback to sample data
+    console.log('🚀 HYBRID APPROACH: Attempting real Facebook API call...');
     
+    const { pageId, startDate, endDate, forceRefresh } = req.body || {};
+    
+    // Use a very short date range for faster response
+    const testStartDate = '2025-03-01T00:00:00.000Z';
+    const testEndDate = '2025-03-03T23:59:59.999Z'; // Just 3 days for speed
+    
+    console.log('📅 Using short date range for speed:', testStartDate, 'to', testEndDate);
+    
+    // Set a short timeout (10 seconds) for the real API call
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Real API timeout after 10 seconds')), 10000);
+    });
+
+    const GraphAPI = require('../../src/graphApi.js');
+    const graphAPI = new GraphAPI();
+
+    // Try real API call with timeout
+    const realApiPromise = graphAPI.calculateInstagramKPIs(
+      pageId || process.env.FACEBOOK_PAGE_ID,
+      testStartDate,
+      testEndDate,
+      forceRefresh || true
+    );
+
+    console.log('📡 Making real Facebook API call...');
+    const realData = await Promise.race([realApiPromise, timeoutPromise]);
+    
+    console.log('✅ REAL API SUCCESS! Got real data from Facebook');
+    console.log('📊 Real data received:', JSON.stringify(realData, null, 2));
+
+    res.status(200).json({
+      ...realData,
+      source: 'real_facebook_api',
+      note: 'Real data from Facebook Graph API',
+      environment: {
+        facebookTokenSet: !!process.env.FACEBOOK_ACCESS_TOKEN,
+        instagramAccountSet: !!process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID,
+        facebookPageSet: !!process.env.FACEBOOK_PAGE_ID
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Real API failed:', error.message);
+    console.log('🔄 Falling back to sample data...');
+    
+    // Fallback to sample data
     const sampleData = {
       followerGrowth: {
         percentage: 8.5,
@@ -67,30 +113,18 @@ export default async function handler(req, res) {
       },
       reportingPeriod: {
         start: "2025-03-01T00:00:00.000Z",
-        end: "2025-03-07T23:59:59.999Z"
+        end: "2025-03-03T23:59:59.999Z"
       },
+      source: 'sample_data_fallback',
+      note: `Sample data - Real API failed: ${error.message}`,
       environment: {
         facebookTokenSet: !!process.env.FACEBOOK_ACCESS_TOKEN,
         instagramAccountSet: !!process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID,
         facebookPageSet: !!process.env.FACEBOOK_PAGE_ID
-      },
-      note: "Sample data for testing environment variables and API connectivity"
+      }
     };
     
-    console.log('✅ Sample data generated successfully!');
-    console.log('📊 Environment status:', sampleData.environment);
-
+    console.log('✅ Sample data fallback generated');
     res.status(200).json(sampleData);
-
-  } catch (error) {
-    console.error('❌ API Error:', error.message);
-    
-    // Return a more informative error response
-    res.status(500).json({
-      error: 'API Error',
-      message: error.message,
-      details: 'Function encountered an error while generating sample data.',
-      timestamp: new Date().toISOString()
-    });
   }
 } 
