@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     console.log('✅ Environment variables are set');
 
     // Import GraphAPI
-    const GraphAPI = require('../../../src/graphApi.js');
+    const GraphAPI = require('../../src/graphApi.js');
     const graphAPI = new GraphAPI();
 
     const { pageId, startDate, endDate, forceRefresh, testMode } = req.body;

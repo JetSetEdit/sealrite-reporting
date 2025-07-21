@@ -771,6 +771,86 @@ Your Facebook access token has expired. Here's how to fix it:
     console.error('Error calculating Instagram KPIs:', error);
     throw error;
   }
+
+  /**
+   * Get Instagram followers data for a specific period
+   */
+  async getFollowers(pageId, startDate, endDate) {
+    console.log('📊 Fetching followers data...');
+    
+    try {
+      const followersData = await this.getInstagramInsights(
+        ['follower_count'],
+        'day',
+        this.instagramBusinessAccountId,
+        startDate,
+        endDate
+      );
+      
+      console.log('✅ Followers data fetched successfully');
+      return {
+        success: true,
+        data: followersData,
+        period: { startDate, endDate }
+      };
+    } catch (error) {
+      console.log('❌ Error fetching followers:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Instagram profile views for a specific period
+   */
+  async getProfileViews(pageId, startDate, endDate) {
+    console.log('📊 Fetching profile views data...');
+    
+    try {
+      const profileViewsData = await this.getInstagramInsights(
+        ['profile_views'],
+        'day',
+        this.instagramBusinessAccountId,
+        startDate,
+        endDate
+      );
+      
+      console.log('✅ Profile views data fetched successfully');
+      return {
+        success: true,
+        data: profileViewsData,
+        period: { startDate, endDate }
+      };
+    } catch (error) {
+      console.log('❌ Error fetching profile views:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Instagram posts and engagement data for a specific period
+   */
+  async getPosts(pageId, startDate, endDate) {
+    console.log('📊 Fetching posts and engagement data...');
+    
+    try {
+      const postsData = await this.getInstagramPosts(
+        100, // limit
+        this.instagramBusinessAccountId,
+        startDate,
+        endDate
+      );
+      
+      console.log('✅ Posts data fetched successfully');
+      return {
+        success: true,
+        data: postsData,
+        period: { startDate, endDate }
+      };
+    } catch (error) {
+      console.log('❌ Error fetching posts:', error.message);
+      throw error;
+    }
+  }
 }
 
 module.exports = GraphAPI; 
