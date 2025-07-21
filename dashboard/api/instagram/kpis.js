@@ -180,68 +180,69 @@ module.exports = async (req, res) => {
   const { startDate, endDate, pageId, forceRefresh = false } = req.body;
   
   try {
-    console.log(`📊 Fetching Instagram KPIs for period: ${startDate} to ${endDate}${forceRefresh ? ' (force refresh)' : ''}`);
+    console.log(`📊 API Test - Fetching Instagram KPIs for period: ${startDate} to ${endDate}`);
+    console.log(`🔧 Environment check - FACEBOOK_ACCESS_TOKEN: ${process.env.FACEBOOK_ACCESS_TOKEN ? 'SET' : 'NOT SET'}`);
+    console.log(`🔧 Environment check - INSTAGRAM_BUSINESS_ACCOUNT_ID: ${process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID ? 'SET' : 'NOT SET'}`);
     
-    // Initialize GraphAPI instance
-    const graphAPI = new GraphAPI();
-    
-    // Use real API calls with our GraphAPI class
-    const kpisData = await graphAPI.calculateInstagramKPIs(
-      null, // instagramBusinessAccountId (will use from env)
-      startDate,
-      endDate,
-      forceRefresh // Pass forceRefresh flag to bypass cache if needed
-    );
-    
-    console.log('✅ Successfully fetched real Instagram KPIs');
-    
-    res.json({
-      instagram: {
-        kpis: kpisData,
-        cacheStatus: forceRefresh ? 'fresh' : 'cached',
-        timestamp: new Date().toISOString()
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Error fetching real Instagram KPIs:', error.message);
-    console.error('🔍 Full error details:', error);
-    console.error('📋 Error stack trace:', error.stack);
-    
-    // Enhanced error response with more details
-    const errorResponse = {
-      error: 'Failed to fetch Instagram data',
-      message: error.message,
-      timestamp: new Date().toISOString(),
-      request: {
-        startDate,
-        endDate,
-        pageId,
-        forceRefresh
-      }
-    };
-    
-    // Fallback to sample data if real API fails
-    console.log('🔄 Falling back to sample data...');
-    
-    const start = new Date(startDate);
-    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june'];
-    const month = monthNames[start.getMonth()];
-    
-    if (!sampleData[month]) {
-      return res.status(400).json({ 
-        ...errorResponse,
-        error: 'No data available for this period'
+    // Validate input
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        error: 'Missing required parameters',
+        required: ['startDate', 'endDate'],
+        received: { startDate, endDate, pageId, forceRefresh }
       });
     }
+    
+    // For now, use sample data to test API structure
+    const start = new Date(startDate);
+    console.log(`📅 Parsed start date: ${start.toISOString()}, month: ${start.getMonth()}`);
+    
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june'];
+    const month = monthNames[start.getMonth()];
+    console.log(`📅 Selected month: ${month}`);
+    
+    if (!sampleData[month]) {
+      console.log(`❌ No data for month: ${month}, available: ${Object.keys(sampleData)}`);
+      return res.status(400).json({ 
+        error: 'No sample data available for this period',
+        requestedMonth: month,
+        requestedMonthIndex: start.getMonth(),
+        availableMonths: Object.keys(sampleData),
+        receivedDates: { startDate, endDate }
+      });
+    }
+    
+    console.log('✅ Successfully returning sample data');
     
     res.json({
       instagram: {
         kpis: sampleData[month],
-        note: 'Using sample data due to API error',
-        cacheStatus: 'fallback',
-        timestamp: new Date().toISOString()
+        note: 'Using sample data for testing',
+        cacheStatus: 'sample',
+        timestamp: new Date().toISOString(),
+        environment: {
+          facebookTokenSet: !!process.env.FACEBOOK_ACCESS_TOKEN,
+          instagramAccountSet: !!process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID,
+          facebookPageSet: !!process.env.FACEBOOK_PAGE_ID
+        },
+        debug: {
+          requestedMonth: month,
+          monthIndex: start.getMonth(),
+          startDate: startDate,
+          endDate: endDate
+        }
       }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in API:', error.message);
+    console.error('🔍 Full error:', error);
+    
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      request: { startDate, endDate, pageId, forceRefresh }
     });
   }
 }; 
