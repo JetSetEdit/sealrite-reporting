@@ -4,40 +4,64 @@ import './App.css';
 function App() {
   const [apiStatus, setApiStatus] = useState('⏳ Testing...');
   const [apiData, setApiData] = useState(null);
+  const [debugLog, setDebugLog] = useState([]);
+
+  const addDebugLog = (message, data = null) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = `[${timestamp}] ${message}`;
+    console.log(logEntry, data);
+    setDebugLog(prev => [...prev, logEntry]);
+  };
 
   useEffect(() => {
-    // Simple API test
+    // Simple API test with verbose debugging
     const testAPI = async () => {
       try {
-        console.log('🔧 Starting API test...');
+        addDebugLog('🔧 Starting API test...');
+        addDebugLog('📋 Environment variables check:');
+        addDebugLog('  - REACT_APP_FACEBOOK_PAGE_ID:', process.env.REACT_APP_FACEBOOK_PAGE_ID);
+        addDebugLog('  - NODE_ENV:', process.env.NODE_ENV);
+        
+        const requestBody = {
+          pageId: process.env.REACT_APP_FACEBOOK_PAGE_ID || '651877034666676',
+          startDate: '2025-06-01T00:00:00.000Z',
+          endDate: '2025-06-30T23:59:59.999Z',
+          forceRefresh: false
+        };
+        
+        addDebugLog('📤 Request body:', requestBody);
+        addDebugLog('🌐 Making fetch request to /api/instagram/kpis...');
         
         const response = await fetch('/api/instagram/kpis', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            pageId: process.env.REACT_APP_FACEBOOK_PAGE_ID || '651877034666676',
-            startDate: '2025-06-01T00:00:00.000Z',
-            endDate: '2025-06-30T23:59:59.999Z',
-            forceRefresh: false
-          })
+          body: JSON.stringify(requestBody)
         });
         
-        console.log('📡 API Response status:', response.status);
+        addDebugLog('📡 Response received:');
+        addDebugLog('  - Status:', response.status);
+        addDebugLog('  - Status Text:', response.statusText);
+        addDebugLog('  - Headers:', Object.fromEntries(response.headers.entries()));
         
         if (response.ok) {
+          addDebugLog('✅ Response is OK, parsing JSON...');
           const data = await response.json();
-          console.log('✅ API Success:', data);
+          addDebugLog('✅ JSON parsed successfully:', data);
           setApiStatus('✅ API Working!');
           setApiData(data);
         } else {
+          addDebugLog('❌ Response is not OK, reading error text...');
           const errorText = await response.text();
-          console.log('❌ API Error:', response.status, errorText);
+          addDebugLog('❌ Error response body:', errorText);
           setApiStatus(`❌ API Error: ${response.status} - ${errorText.substring(0, 100)}`);
         }
       } catch (error) {
-        console.log('💥 Network Error:', error);
+        addDebugLog('💥 Exception caught:', error);
+        addDebugLog('💥 Error name:', error.name);
+        addDebugLog('💥 Error message:', error.message);
+        addDebugLog('💥 Error stack:', error.stack);
         setApiStatus(`💥 Network Error: ${error.message}`);
       }
     };
@@ -103,6 +127,33 @@ function App() {
               </pre>
             </div>
           )}
+        </div>
+
+        <div style={{ 
+          background: '#fef2f2', 
+          padding: '20px', 
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}>
+          <h3>🐛 Debug Log</h3>
+          <p><strong>Console logs (check browser console for full details):</strong></p>
+          <pre style={{ 
+            background: '#1f2937', 
+            color: '#10b981',
+            padding: '10px', 
+            borderRadius: '4px',
+            fontSize: '11px',
+            overflow: 'auto',
+            maxHeight: '300px',
+            fontFamily: 'monospace'
+          }}>
+            {debugLog.map((log, index) => (
+              <div key={index}>{log}</div>
+            ))}
+          </pre>
+          <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '10px' }}>
+            💡 Open browser console (F12) for detailed debugging information
+          </p>
         </div>
         
         <div style={{ 
