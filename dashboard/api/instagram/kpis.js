@@ -160,8 +160,8 @@ const sampleData = {
   }
 };
 
-module.exports = async (req, res) => {
-  // Enable CORS
+export default async function handler(req, res) {
+  // Add CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -172,7 +172,16 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // Only allow POST requests
+  // VERBOSE DEBUGGING - Add this section
+  console.log('🔍 === API FUNCTION STARTED ===');
+  console.log('📋 Request method:', req.method);
+  console.log('📋 Request body:', JSON.stringify(req.body, null, 2));
+  console.log('📋 Environment variables check:');
+  console.log('  - FACEBOOK_ACCESS_TOKEN:', process.env.FACEBOOK_ACCESS_TOKEN ? 'SET (' + process.env.FACEBOOK_ACCESS_TOKEN.substring(0, 10) + '...)' : 'NOT SET');
+  console.log('  - INSTAGRAM_BUSINESS_ACCOUNT_ID:', process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID ? 'SET (' + process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID + ')' : 'NOT SET');
+  console.log('  - FACEBOOK_PAGE_ID:', process.env.FACEBOOK_PAGE_ID ? 'SET (' + process.env.FACEBOOK_PAGE_ID + ')' : 'NOT SET');
+  console.log('🔍 === END DEBUGGING ===');
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
