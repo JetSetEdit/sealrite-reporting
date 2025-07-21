@@ -3,6 +3,15 @@ require('dotenv').config();
 const flatCache = require('flat-cache');
 const path = require('path');
 
+// Custom error class for token expiration
+class TokenExpiredError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'TokenExpiredError';
+    this.isTokenExpired = true;
+  }
+}
+
 // Initialize cache outside the class for simplicity
 // Cache will be stored in a directory named 'api-cache' in your project root
 const cache = flatCache.create('apiCache', path.resolve('./api-cache'));
@@ -14,6 +23,68 @@ class GraphAPI {
     this.accessToken = process.env.FACEBOOK_ACCESS_TOKEN;
     this.instagramBusinessAccountId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
     this.facebookPageId = process.env.FACEBOOK_PAGE_ID;
+    
+    // Validate token on initialization
+    this.validateToken();
+  }
+
+  /**
+   * Validates the access token and provides helpful error messages
+   */
+  validateToken() {
+    if (!this.accessToken) {
+      throw new Error('❌ FACEBOOK_ACCESS_TOKEN environment variable is not set. Please add it to your .env file.');
+    }
+    
+    if (this.accessToken.length < 50) {
+      throw new Error('❌ Access token appears to be invalid (too short). Please check your FACEBOOK_ACCESS_TOKEN in .env file.');
+    }
+    
+    console.log('✅ Access token loaded successfully');
+  }
+
+  /**
+   * Checks if an error is due to token expiration
+   */
+  isTokenExpiredError(error) {
+    const errorMessage = error.message || '';
+    const errorData = error.response?.data?.error;
+    
+    return (
+      errorMessage.includes('Session has expired') ||
+      errorMessage.includes('Error validating access token') ||
+      errorData?.code === 190 ||
+      errorData?.error_subcode === 463
+    );
+  }
+
+  /**
+   * Provides helpful guidance for token expiration
+   */
+  getTokenExpirationHelp() {
+    return `
+🔑 **Access Token Expired**
+
+Your Facebook access token has expired. Here's how to fix it:
+
+1. **Generate New Token:**
+   - Go to: https://developers.facebook.com/tools/explorer/
+   - Click "Generate Access Token"
+   - Select required permissions (Instagram permissions)
+   - Copy the new token
+
+2. **Update Your Environment:**
+   - Replace FACEBOOK_ACCESS_TOKEN in your .env file
+   - Restart your server
+
+3. **Required Permissions:**
+   - instagram_basic
+   - instagram_manage_insights
+   - pages_read_engagement
+   - pages_show_list
+
+**Note:** Tokens expire every 60 days, not due to request volume.
+    `;
   }
 
   /**
@@ -75,14 +146,18 @@ class GraphAPI {
    * @param {string} cacheKeySuffix - Optional suffix to make cache key unique (e.g., for different periods).
    * @returns {Promise<object>} - An object containing 'data' which is an array of all fetched items.
    */
-  async makeRequest(endpoint, params = {}, retries = 3, delay = 1000, cacheKeySuffix = '', maxPageFetches = 20) { // Added maxPageFetches
+  async makeRequest(endpoint, params = {}, retries = 3, delay = 1000, cacheKeySuffix = '', maxPageFetches = 20, forceRefresh = false) { // Added maxPageFetches and forceRefresh
     const cacheKey = `${endpoint}?${JSON.stringify(params)}_${cacheKeySuffix}`;
     
-    // Check cache first
-    const cachedData = cache.getKey(cacheKey);
-    if (cachedData) {
-      console.log('Using cached data for:', cacheKey);
-      return cachedData;
+    // Check cache first (unless forceRefresh is true)
+    if (!forceRefresh) {
+      const cachedData = cache.getKey(cacheKey);
+      if (cachedData) {
+        console.log('Using cached data for:', cacheKey);
+        return cachedData;
+      }
+    } else {
+      console.log('Force refresh requested - bypassing cache for:', cacheKey);
     }
 
     let url = `${this.baseUrl}${endpoint}`;
@@ -125,6 +200,15 @@ class GraphAPI {
         // Handle other non-successful responses (e.g., 400 Bad Request, 403 Forbidden, 404 Not Found)
         if (response.status >= 400) {
           console.log(`API error for ${currentUrl || url}: Status ${response.status}, Data:`, response.data);
+          
+          // Check for token expiration specifically - don't retry these
+          const errorData = response.data?.error;
+          if (errorData?.code === 190 || errorData?.error_subcode === 463) {
+            console.error('🔑 TOKEN EXPIRED ERROR DETECTED');
+            console.error(this.getTokenExpirationHelp());
+            throw new TokenExpiredError('Access token has expired. Please generate a new token and update your environment variables.');
+          }
+          
           const errorMessage = response.data?.error?.message || `API error: ${response.status} - ${response.statusText}`;
           throw new Error(errorMessage); // Re-throw other errors
         }
@@ -153,6 +237,13 @@ class GraphAPI {
         }
 
       } catch (error) {
+        // Check for token expiration first - don't retry these
+        if (error.isTokenExpired || this.isTokenExpiredError(error)) {
+          console.error('🔑 TOKEN EXPIRED ERROR DETECTED');
+          console.error(this.getTokenExpirationHelp());
+          throw error; // Re-throw the token expired error without retrying
+        }
+        
         // If it's a network error or an error before response.status could be checked, retry
         if (attempt < retries && !error.response) { // Only retry if it's not an API-specific error with a response
           console.log(`Network/Unhandled error on attempt ${attempt + 1}. Retrying in ${delay / 1000} seconds: ${error.message}`);
@@ -174,6 +265,26 @@ class GraphAPI {
     console.log('Data cached for:', cacheKey);
     
     return result; // Return all collected data as a single 'data' array
+  }
+
+  /**
+   * Clears cache for specific keys or all cache if no pattern provided
+   */
+  clearCache(pattern = null) {
+    if (pattern) {
+      // Clear specific cache keys matching pattern
+      const keys = cache.getAllKeys();
+      const matchingKeys = keys.filter(key => key.includes(pattern));
+      matchingKeys.forEach(key => {
+        cache.deleteKey(key);
+        console.log(`Cleared cache for: ${key}`);
+      });
+    } else {
+      // Clear all cache
+      cache.clear();
+      console.log('All cache cleared');
+    }
+    cache.save();
   }
 
   /**
@@ -484,7 +595,7 @@ class GraphAPI {
   /**
    * Calculates contract-required KPIs for monthly reporting for Instagram.
    */
-  async calculateInstagramKPIs(instagramBusinessAccountId = null, startDate = null, endDate = null) {
+  async calculateInstagramKPIs(instagramBusinessAccountId = null, startDate = null, endDate = null, forceRefresh = false) {
     const accountId = instagramBusinessAccountId || this.instagramBusinessAccountId;
     if (!accountId) {
       throw new Error('Instagram Business Account ID not configured');
@@ -607,21 +718,17 @@ class GraphAPI {
     // These metrics are not supported for Instagram Business accounts
 
     const totalReach = getAccountMetricTotal('reach');
-    // Note: impressions is deprecated in API v22+ and no longer available
-    const totalImpressions = 0; // Set to 0 since impressions metric is deprecated
-
+    
     // Use Total Reach for engagement rate calculation denominator
     const engagementRatePercentage = totalReach > 0 ? (totalEngagementsNumerator / totalReach) * 100 : 0;
     
-    const profileViewsData = accountInsights.data.find(metric => metric.name === 'profile_views');
     const totalProfileViews = getAccountMetricTotal('profile_views');
-    const totalWebsiteClicks = 0; // Set to 0 since website_clicks is not available for this account
 
     console.log('Engagement calculation details:');
     console.log(`  Total Engagements Numerator (Likes + Comments + Saved + Shares from posts): ${totalEngagementsNumerator}`);
     console.log(`  Total Reach (denominator): ${totalReach}`);
     console.log(`  Engagement rate (based on Reach): ${engagementRatePercentage}%`);
-    console.log(`  Total website clicks from posts: ${totalWebsiteClicks}`);
+    console.log(`  Total profile views: ${totalProfileViews}`);
     console.log(`  Total other contact clicks from insights: ${totalOtherContactClicks}`);
 
     return {
@@ -646,16 +753,12 @@ class GraphAPI {
         total: totalReach,
         period: 'monthly'
       },
-      impressions: { 
-        total: totalImpressions,
-        period: 'monthly'
-      },
       posts: {
         count: postsData.data?.length || 0,
         data: postsData.data || []
       },
       conversions: { 
-        websiteClicks: totalWebsiteClicks,
+        websiteClicks: null, // Not available in Instagram API
         otherContactClicks: totalOtherContactClicks,
       },
       reportingPeriod: {

@@ -1,28 +1,45 @@
-const axios = require('axios');
-require('dotenv').config();
+const GraphAPI = require('./src/graphApi');
 
-(async () => {
-  const accountId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
-  const token = process.env.FACEBOOK_ACCESS_TOKEN;
-  if (!accountId || !token) {
-    console.error('Missing INSTAGRAM_BUSINESS_ACCOUNT_ID or FACEBOOK_ACCESS_TOKEN in .env');
-    process.exit(1);
-  }
-  const url = `https://graph.facebook.com/v23.0/${accountId}/insights`;
-  const params = {
-    metric: 'profile_views,website_clicks',
-    period: 'day',
-    metric_type: 'total_value',
-    access_token: token
-  };
+async function testProfileViews() {
+  const graphApi = new GraphAPI();
+  
   try {
-    const res = await axios.get(url, { params });
-    console.log(JSON.stringify(res.data, null, 2));
-  } catch (e) {
-    if (e.response) {
-      console.error('API Error:', JSON.stringify(e.response.data, null, 2));
+    console.log('🔍 Testing Profile Views API call...');
+    
+    // Test the account insights specifically for profile_views
+    const accountInsights = await graphApi.getInstagramInsights(
+      ['profile_views', 'reach'],
+      'day',
+      '17841470767631754', // Instagram Business Account ID
+      '2025-06-01T00:00:00.000Z',
+      '2025-07-18T23:59:59.999Z'
+    );
+    
+    console.log('📊 Account Insights Response:');
+    console.log(JSON.stringify(accountInsights, null, 2));
+    
+    // Check specifically for profile_views
+    const profileViewsData = accountInsights.data.find(metric => metric.name === 'profile_views');
+    console.log('\n👤 Profile Views Data:');
+    console.log(profileViewsData);
+    
+    if (profileViewsData) {
+      console.log('\n📈 Profile Views Values:');
+      console.log(profileViewsData.values);
+      
+      // Calculate total
+      const totalProfileViews = profileViewsData.values.reduce((sum, day) => sum + (day.value || 0), 0);
+      console.log(`\n🎯 Total Profile Views: ${totalProfileViews}`);
     } else {
-      console.error('Error:', e.message);
+      console.log('\n❌ No profile_views data found in response');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error testing profile views:', error.message);
+    if (error.response?.data) {
+      console.error('API Error Details:', error.response.data);
     }
   }
-})(); 
+}
+
+testProfileViews(); 
